@@ -1568,8 +1568,10 @@ export default function App() {
   const [syncStatus, setSyncStatus] = useState<'local' | 'syncing' | 'synced' | 'error'>('local');
   const [lastSyncedAt, setLastSyncedAt] = useState<string | null>(null);
   const [syncErrorMessage, setSyncErrorMessage] = useState<string | null>(null);
+  const isInitialCloudLoadComplete = useRef<boolean>(false);
   const isApplyingRemoteRef = useRef<boolean>(false);
   const syncTimeoutRef = useRef<number | null>(null);
+  const retryTimeoutRef = useRef<number | null>(null);
 
   // Custom Confirmation Modal State (never use window.confirm/alert/prompt)
   const [confirmModal, setConfirmModal] = useState<{
@@ -1589,24 +1591,30 @@ export default function App() {
     }, 2800);
   }, []);
 
-  // Pull state from Supabase Cloud (checks public.user_states table first, then user_metadata fallback)
+  // Pull state from Supabase Cloud (fetches from user_data before enabling any cloud upserts)
   const pullFromCloud = useCallback(
     async (user: SupabaseUser, silent = false) => {
-      setSyncStatus('syncing');
-      setSyncErrorMessage(null);
+      isInitialCloudLoadComplete.current = false;
       try {
         let remoteState: Partial<StudioState> | null = null;
+        let remoteTier: string | null = null;
 
-        // 1. Try public.user_states table
         const { data: rows, error: tableErr } = await supabase
-          .from('user_states')
+          .from('user_data')
           .select('*', 'user_id', user.id);
 
-        if (!tableErr && Array.isArray(rows) && rows.length > 0 && rows[0]?.state_data) {
-          remoteState = rows[0].state_data;
+        if (!tableErr && Array.isArray(rows) && rows.length > 0) {
+          const row = rows[0];
+          if (row?.app_state && typeof row.app_state === 'object') {
+            remoteState = row.app_state;
+          } else if (row?.state_data && typeof row.state_data === 'object') {
+            remoteState = row.state_data;
+          }
+          if (typeof row?.tier === 'string') {
+            remoteTier = row.tier;
+          }
         }
 
-        // 2. Fallback to user_metadata.rangeflow_studio_v4
         if (!remoteState && user.user_metadata?.rangeflow_studio_v4) {
           remoteState = user.user_metadata.rangeflow_studio_v4;
         }
@@ -1629,9 +1637,16 @@ export default function App() {
               Array.isArray(remoteState!.stackOptions) && remoteState!.stackOptions.length > 0
                 ? [...new Set<number>(remoteState!.stackOptions)].sort((a, b) => b - a)
                 : prev.stackOptions;
+            const resolvedIsPro =
+              remoteTier !== null
+                ? remoteTier.toLowerCase() === 'pro'
+                : typeof remoteState!.isPro === 'boolean'
+                ? remoteState!.isPro
+                : prev.isPro;
             return {
               ...prev,
               ...remoteState,
+              isPro: resolvedIsPro,
               folders,
               activeFolderId,
               playerOptions,
@@ -1641,72 +1656,71 @@ export default function App() {
               history: Array.isArray(remoteState!.history) ? remoteState!.history : prev.history
             };
           });
-          setTimeout(() => {
+          window.setTimeout(() => {
             isApplyingRemoteRef.current = false;
           }, 100);
           setLastSyncedAt(new Date().toLocaleTimeString());
           setSyncStatus('synced');
-          if (!silent) triggerToast('Pulled latest ranges & leaks from Supabase Cloud!');
+          if (!silent) triggerToast('Loaded cloud data from Supabase!');
         } else {
           setSyncStatus('synced');
-          if (!silent) triggerToast('Connected to Supabase Cloud (no remote snapshot yet).');
         }
       } catch (err: any) {
-        setSyncStatus('error');
-        setSyncErrorMessage(err?.message || 'Cloud pull failed');
+        console.warn('Initial Supabase cloud load warning:', err);
+      } finally {
+        isInitialCloudLoadComplete.current = true;
       }
     },
     [triggerToast]
   );
 
-  // Push current state to Supabase Cloud silently in background (no top-level UI state flashes on background saves)
+  // Push current state to Supabase user_data with explicit { onConflict: 'user_id' } and silent 4000ms retry
   const pushToCloud = useCallback(
-    async (snapshot: StudioState, user: SupabaseUser, silent = true) => {
-      if (!silent) {
-        setSyncStatus('syncing');
-      }
-      setSyncErrorMessage(null);
+    async (stateToSave: StudioState, sessionUser: SupabaseUser, isRetry = false) => {
+      if (!isInitialCloudLoadComplete.current) return;
+
+      const userTier = stateToSave.isPro ? 'pro' : 'free';
       try {
-        const nowIso = new Date().toISOString();
+        const { error } = await supabase
+          .from('user_data')
+          .upsert(
+            {
+              user_id: sessionUser.id,
+              tier: userTier || 'free',
+              app_state: stateToSave,
+              updated_at: new Date().toISOString()
+            },
+            { onConflict: 'user_id' }
+          );
 
-        // 1. Upsert into public.user_states table if present
-        await supabase.from('user_states').upsert(
-          {
-            user_id: user.id,
-            state_data: snapshot,
-            updated_at: nowIso
-          },
-          { onConflict: 'user_id' }
-        );
-
-        // 2. Also persist in Supabase Auth user_metadata so sync works out-of-the-box without custom SQL tables
-        const { error: metaErr } = await supabase.auth.updateUser({
-          data: {
-            rangeflow_studio_v4: snapshot,
-            rangeflow_updated_at: nowIso
+        if (error) {
+          console.warn('Supabase background upsert warning:', error);
+          if (!isRetry) {
+            if (retryTimeoutRef.current !== null) {
+              window.clearTimeout(retryTimeoutRef.current);
+            }
+            retryTimeoutRef.current = window.setTimeout(() => {
+              pushToCloud(stateToSave, sessionUser, true);
+            }, 4000);
           }
-        });
-
-        if (metaErr) {
-          setSyncStatus('error');
-          setSyncErrorMessage(metaErr.message);
-          if (!silent) triggerToast(`Sync error: ${metaErr.message}`);
           return;
         }
 
-        if (!silent) {
-          setLastSyncedAt(new Date().toLocaleTimeString());
-          setSyncStatus('synced');
-          triggerToast('Synced studio state to Supabase Cloud!');
-        } else {
-          setSyncStatus(prev => (prev === 'error' ? 'synced' : prev));
-        }
+        setLastSyncedAt(new Date().toLocaleTimeString());
+        setSyncStatus('synced');
       } catch (err: any) {
-        setSyncStatus('error');
-        setSyncErrorMessage(err?.message || 'Cloud push failed');
+        console.warn('Supabase background upsert network blip:', err);
+        if (!isRetry) {
+          if (retryTimeoutRef.current !== null) {
+            window.clearTimeout(retryTimeoutRef.current);
+          }
+          retryTimeoutRef.current = window.setTimeout(() => {
+            pushToCloud(stateToSave, sessionUser, true);
+          }, 4000);
+        }
       }
     },
-    [triggerToast]
+    []
   );
 
   // Initialize Supabase session on mount and subscribe to auth changes
@@ -1727,6 +1741,7 @@ export default function App() {
       if (event === 'SIGNED_IN' && nextUser) {
         pullFromCloud(nextUser, false);
       } else if (event === 'SIGNED_OUT') {
+        isInitialCloudLoadComplete.current = false;
         setSyncStatus('local');
         setLastSyncedAt(null);
       }
@@ -1735,18 +1750,21 @@ export default function App() {
     return () => {
       mounted = false;
       sub.subscription.unsubscribe();
+      if (retryTimeoutRef.current !== null) {
+        window.clearTimeout(retryTimeoutRef.current);
+      }
     };
   }, [pullFromCloud]);
 
-  // Debounced auto-sync to Supabase Cloud whenever state changes while signed in
+  // Debounced auto-sync (2500ms) to Supabase Cloud whenever state changes after initial cloud load completes
   useEffect(() => {
-    if (!authUser || isApplyingRemoteRef.current) return;
+    if (!authUser || !isInitialCloudLoadComplete.current || isApplyingRemoteRef.current) return;
     if (syncTimeoutRef.current !== null) {
       window.clearTimeout(syncTimeoutRef.current);
     }
     syncTimeoutRef.current = window.setTimeout(() => {
-      pushToCloud(state, authUser, true);
-    }, 1200);
+      pushToCloud(state, authUser, false);
+    }, 2500);
     return () => {
       if (syncTimeoutRef.current !== null) {
         window.clearTimeout(syncTimeoutRef.current);
@@ -2884,20 +2902,8 @@ export default function App() {
           </button>
         </div>
 
-        {/* Right Controls: History + Account / Pro + Clean Auth / Log Out (No Email or Sync Blinking) */}
+        {/* Right Controls: History + Account / Pro + Clean Auth / Log Out (No Email or Sync Error Flashes) */}
         <div className="flex items-center gap-2">
-          {syncStatus === 'error' && (
-            <button
-              type="button"
-              onClick={() => setShowAuthModal(true)}
-              title={syncErrorMessage || 'Cloud Sync Error — Click to retry'}
-              className="px-2.5 py-1.5 rounded-lg bg-[#3B181E] border border-[#E06C75] text-[#E06C75] text-xs font-bold flex items-center gap-1"
-            >
-              <AlertCircle className="w-3.5 h-3.5" />
-              <span>Sync Error</span>
-            </button>
-          )}
-
           <button
             type="button"
             onClick={() => setShowHistoryDrawer(true)}
