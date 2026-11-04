@@ -392,6 +392,8 @@ export interface StudioState {
   activeFolderId: string;
   playerOptions: number[];
   stackOptions: number[];
+  customStacks?: string[];
+  activePositions?: string[];
   activeTableSize: number;
   activeStackDepth: number;
   activeScenario: ScenarioType;
@@ -864,8 +866,18 @@ export function applyHeroDecisionToFrame(
   };
 }
 
-export function getValidPositions(tableSize: number, scenario: ScenarioType, currentHero: string, currentVillain: string) {
-  const seats = getSeatsForTableSize(tableSize);
+export function getValidPositions(
+  tableSize: number,
+  scenario: ScenarioType,
+  currentHero: string,
+  currentVillain: string,
+  customPositions?: string[]
+) {
+  const baseSeats = getSeatsForTableSize(tableSize);
+  const seats =
+    tableSize === 6 && Array.isArray(customPositions) && customPositions.length >= 2
+      ? customPositions
+      : baseSeats;
   let heroPos = seats.includes(currentHero) ? currentHero : seats[0];
 
   if (scenario === 'Open Raise (RFI)') {
@@ -1162,8 +1174,17 @@ export function getSmartDefaultTrainingHands(chart: ChartData): string[] {
   return ALL_169_HANDS.filter(h => resultSet.has(h));
 }
 
+export function getInRangeHands(chart: ChartData): string[] {
+  const displayed = getDisplayedGrid(chart);
+  return ALL_169_HANDS.filter(h => {
+    const weights = displayed[h];
+    if (!weights) return false;
+    return Object.values(weights).reduce((a, b) => a + (b || 0), 0) > 0;
+  });
+}
+
 export function getEffectiveTrainingHands(chart: ChartData): string[] {
-  if (chart.customTrainingHands && chart.customTrainingHands.length > 0) {
+  if (Array.isArray(chart.customTrainingHands)) {
     return chart.customTrainingHands;
   }
   return getSmartDefaultTrainingHands(chart);
@@ -1376,7 +1397,9 @@ export function getInitialStudioState(): StudioState {
     folders: [{ id: 'my-own-charts', name: 'My Own Charts' }],
     activeFolderId: 'my-own-charts',
     playerOptions: [2, 6, 9, 10],
-    stackOptions: [100, 60, 40, 20],
+    stackOptions: [200, 100, 50],
+    customStacks: ['100 BB', '50 BB', '200 BB'],
+    activePositions: ['UTG', 'HJ', 'CO', 'BTN', 'SB', 'BB'],
     activeTableSize: 6,
     activeStackDepth: 100,
     activeScenario: 'Open Raise (RFI)',
@@ -1414,7 +1437,17 @@ export function getInitialStudioState(): StudioState {
 
     const stackOptions = Array.isArray(parsed.stackOptions) && parsed.stackOptions.length > 0
       ? [...new Set<number>(parsed.stackOptions)].sort((a, b) => b - a)
-      : [100, 60, 40, 20];
+      : [200, 100, 50];
+
+    const activePositions =
+      Array.isArray(parsed.activePositions) && parsed.activePositions.length > 0
+        ? parsed.activePositions
+        : ['UTG', 'HJ', 'CO', 'BTN', 'SB', 'BB'];
+
+    const customStacks =
+      Array.isArray(parsed.customStacks) && parsed.customStacks.length > 0
+        ? parsed.customStacks
+        : stackOptions.map(s => `${s} BB`);
 
     const today = getTodayDateString();
     const dailyHandsCount = parsed.dailyHandsDate === today ? (parsed.dailyHandsCount || 0) : 0;
@@ -1426,6 +1459,8 @@ export function getInitialStudioState(): StudioState {
       activeFolderId,
       playerOptions,
       stackOptions,
+      customStacks,
+      activePositions,
       dailyHandsDate: today,
       dailyHandsCount,
       charts: parsed.charts || {},
@@ -1492,10 +1527,17 @@ export default function App() {
     }
   }, [state]);
 
-  // Ensure heroPos and villainPos are always valid for activeTableSize & activeScenario
+  // Ensure heroPos and villainPos are always valid for activeTableSize, activeScenario & activePositions
   const validPos = useMemo(
-    () => getValidPositions(state.activeTableSize, state.activeScenario, state.activeHeroPos, state.activeVillainPos),
-    [state.activeTableSize, state.activeScenario, state.activeHeroPos, state.activeVillainPos]
+    () =>
+      getValidPositions(
+        state.activeTableSize,
+        state.activeScenario,
+        state.activeHeroPos,
+        state.activeVillainPos,
+        state.activePositions
+      ),
+    [state.activeTableSize, state.activeScenario, state.activeHeroPos, state.activeVillainPos, state.activePositions]
   );
 
   const currentSpotId = useMemo(
@@ -1537,6 +1579,15 @@ export default function App() {
   const [hoveredBucketId, setHoveredBucketId] = useState<string | null>(null);
   const [pureDragSourceHand, setPureDragSourceHand] = useState<string | null>(null);
 
+  // Training Hands Drawer Click-and-Drag Painting Refs
+  const isDraggingTrainingGrid = useRef<boolean>(false);
+  const dragTrainingMode = useRef<'select' | 'deselect'>('select');
+
+  // All Charts Browser & Position Customizer State
+  const [showAllChartsBrowser, setShowAllChartsBrowser] = useState<boolean>(false);
+  const [addingPosition, setAddingPosition] = useState<boolean>(false);
+  const [newPositionName, setNewPositionName] = useState<string>('');
+
   // Sync selectedActionId when scenario/chart changes
   useEffect(() => {
     if (!currentChart.actions.some(a => a.id === selectedActionId)) {
@@ -1544,13 +1595,14 @@ export default function App() {
     }
   }, [currentChart.actions, selectedActionId]);
 
-  // Global mouseup to end drag painting
+  // Global mouseup to end drag painting (both main 13x13 grid and Training Hands mini-matrix)
   useEffect(() => {
     const handleMouseUp = () => {
       setIsDraggingPaint(false);
       setDragTargetWeight(null);
       setPressedHandKey(null);
       setPureDragSourceHand(null);
+      isDraggingTrainingGrid.current = false;
     };
     window.addEventListener('mouseup', handleMouseUp);
     return () => window.removeEventListener('mouseup', handleMouseUp);
@@ -2721,10 +2773,173 @@ export default function App() {
       return {
         ...prev,
         stackOptions: next,
+        customStacks: next.map(s => `${s} BB`),
         activeStackDepth: val
       };
     });
     setAddingStack(false);
+  };
+
+  const handleDeleteStackOption = (stackToRemove: number) => {
+    setState(prev => {
+      if (prev.stackOptions.length <= 1) {
+        triggerToast('At least 1 stack size must remain.');
+        return prev;
+      }
+      const next = prev.stackOptions.filter(s => s !== stackToRemove);
+      const nextActive = prev.activeStackDepth === stackToRemove ? next[0] : prev.activeStackDepth;
+      return {
+        ...prev,
+        stackOptions: next,
+        customStacks: next.map(s => `${s} BB`),
+        activeStackDepth: nextActive
+      };
+    });
+  };
+
+  const handleDeletePlayerOption = (playerToRemove: number) => {
+    setState(prev => {
+      if (prev.playerOptions.length <= 1) {
+        triggerToast('At least 1 player count must remain.');
+        return prev;
+      }
+      const next = prev.playerOptions.filter(p => p !== playerToRemove);
+      const nextActive = prev.activeTableSize === playerToRemove ? next[0] : prev.activeTableSize;
+      return {
+        ...prev,
+        playerOptions: next,
+        activeTableSize: nextActive
+      };
+    });
+  };
+
+  const handleDeletePosition = (posToRemove: string) => {
+    setState(prev => {
+      const currentPositions =
+        Array.isArray(prev.activePositions) && prev.activePositions.length > 0
+          ? prev.activePositions
+          : getSeatsForTableSize(prev.activeTableSize);
+      if (currentPositions.length <= 2) {
+        triggerToast('At least 2 positions must remain on the table.');
+        return prev;
+      }
+      const next = currentPositions.filter(p => p !== posToRemove);
+      const nextHero = prev.activeHeroPos === posToRemove ? next[0] : prev.activeHeroPos;
+      return {
+        ...prev,
+        activePositions: next,
+        activeHeroPos: nextHero
+      };
+    });
+  };
+
+  const handleAddPosition = (posLabel: string) => {
+    const clean = posLabel.trim().toUpperCase();
+    if (!clean) return;
+    setState(prev => {
+      const currentPositions =
+        Array.isArray(prev.activePositions) && prev.activePositions.length > 0
+          ? prev.activePositions
+          : getSeatsForTableSize(prev.activeTableSize);
+      if (currentPositions.includes(clean)) {
+        return { ...prev, activeHeroPos: clean };
+      }
+      const canonicalOrder = ['UTG', 'UTG+1', 'UTG+2', 'MP', 'LJ', 'HJ', 'CO', 'BTN', 'SB', 'BB'];
+      const next = [...currentPositions, clean].sort((a, b) => {
+        const ia = canonicalOrder.indexOf(a);
+        const ib = canonicalOrder.indexOf(b);
+        if (ia !== -1 && ib !== -1) return ia - ib;
+        if (ia !== -1) return -1;
+        if (ib !== -1) return 1;
+        return 0;
+      });
+      return {
+        ...prev,
+        activePositions: next,
+        activeHeroPos: clean
+      };
+    });
+    setNewPositionName('');
+    setAddingPosition(false);
+  };
+
+  const handleJumpToSavedChart = (chart: ChartData) => {
+    setState(prev => {
+      // Ensure the chart's folder exists (if orphaned, re-attach or create its folder so it is never hidden)
+      const folderExists = prev.folders.some(f => f.id === chart.folderId);
+      const nextFolders = folderExists
+        ? prev.folders
+        : [...prev.folders, { id: chart.folderId || 'recovered-folder', name: 'Recovered Charts' }];
+      const nextFolderId = folderExists ? chart.folderId : (chart.folderId || 'recovered-folder');
+
+      // Ensure tableSize, stackDepth, and positions include this chart's coordinates
+      const nextPlayers = prev.playerOptions.includes(chart.tableSize)
+        ? prev.playerOptions
+        : [...new Set([...prev.playerOptions, chart.tableSize])].sort((a, b) => a - b);
+
+      const nextStacks = prev.stackOptions.includes(chart.stackDepth)
+        ? prev.stackOptions
+        : [...new Set([...prev.stackOptions, chart.stackDepth])].sort((a, b) => b - a);
+
+      const curPositions =
+        Array.isArray(prev.activePositions) && prev.activePositions.length > 0
+          ? prev.activePositions
+          : ['UTG', 'HJ', 'CO', 'BTN', 'SB', 'BB'];
+      const neededPositions = [chart.heroPos, chart.villainPos].filter(
+        p => p && p !== 'none' && !curPositions.includes(p)
+      );
+      const canonicalOrder = ['UTG', 'UTG+1', 'UTG+2', 'MP', 'LJ', 'HJ', 'CO', 'BTN', 'SB', 'BB'];
+      const nextPositions =
+        neededPositions.length > 0
+          ? [...curPositions, ...neededPositions].sort((a, b) => {
+              const ia = canonicalOrder.indexOf(a);
+              const ib = canonicalOrder.indexOf(b);
+              if (ia !== -1 && ib !== -1) return ia - ib;
+              return 0;
+            })
+          : curPositions;
+
+      return {
+        ...prev,
+        folders: nextFolders,
+        activeFolderId: nextFolderId,
+        playerOptions: nextPlayers,
+        stackOptions: nextStacks,
+        customStacks: nextStacks.map(s => `${s} BB`),
+        activePositions: nextPositions,
+        activeTableSize: chart.tableSize,
+        activeStackDepth: chart.stackDepth,
+        activeScenario: chart.scenarioType,
+        activeHeroPos: chart.heroPos,
+        activeVillainPos: chart.villainPos
+      };
+    });
+  };
+
+  const handleDeleteSavedChart = (spotIdToDelete: string, titleLabel: string) => {
+    setConfirmModal({
+      title: `Delete Chart "${titleLabel}"?`,
+      message: `This will permanently delete "${titleLabel}" and any associated leak entries.`,
+      confirmLabel: 'Delete Chart',
+      danger: true,
+      onConfirm: () => {
+        setState(prev => {
+          const nextCharts = { ...prev.charts };
+          delete nextCharts[spotIdToDelete];
+          const nextLeaks: { [k: string]: LeakEntry } = {};
+          for (const [lk, lv] of Object.entries(prev.leaks)) {
+            if (lv.spotId !== spotIdToDelete) nextLeaks[lk] = lv;
+          }
+          return {
+            ...prev,
+            charts: nextCharts,
+            leaks: nextLeaks
+          };
+        });
+        setConfirmModal(null);
+        triggerToast(`Deleted chart "${titleLabel}"`);
+      }
+    });
   };
 
   const handleSaveActionModal = () => {
@@ -2812,7 +3027,13 @@ export default function App() {
   const heroIdx = seats.indexOf(validPos.heroPos);
 
   const hasSeatPaintedChart = (seat: string): boolean => {
-    const testPos = getValidPositions(state.activeTableSize, state.activeScenario, seat, validPos.villainPos);
+    const testPos = getValidPositions(
+      state.activeTableSize,
+      state.activeScenario,
+      seat,
+      validPos.villainPos,
+      state.activePositions
+    );
     const sid = buildSpotId(
       state.activeFolderId,
       state.activeTableSize,
@@ -2830,16 +3051,13 @@ export default function App() {
           TOP NAVIGATION HEADER
          ==================================================================== */}
       <header className="h-14 bg-[#12161F] border-b border-[#232938] px-4 flex items-center justify-between shrink-0 z-30">
-        {/* Left: Coral emblem + RangeFlow + GTO STUDIO V4 badge */}
+        {/* Left: Coral emblem + clean RangeFlow branding */}
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[#E06C75] to-[#D15A66] flex items-center justify-center shadow-md shadow-[#E06C75]/20">
             <Layers className="w-4 h-4 text-[#0B0D12] stroke-[2.5]" />
           </div>
           <div className="flex items-center gap-2">
             <span className="font-bold tracking-tight text-lg text-white">RangeFlow</span>
-            <span className="text-[10px] font-bold tracking-wider uppercase px-2 py-0.5 rounded bg-[#E06C75]/15 text-[#E06C75] border border-[#E06C75]/30">
-              GTO STUDIO V4
-            </span>
           </div>
         </div>
 
@@ -3125,15 +3343,181 @@ export default function App() {
               )}
             </div>
 
-            {/* Right: Training Hands X/169 button */}
-            <button
-              type="button"
-              onClick={() => setShowTrainingHandsDrawer(true)}
-              className="px-3 py-1.5 rounded-lg bg-[#181D29] hover:bg-[#232938] border border-[#232938] text-xs font-semibold text-slate-200 flex items-center gap-1.5 transition-colors"
-            >
-              <span>🎯 Training Hands {getEffectiveTrainingHands(currentChart).length}/169</span>
-            </button>
+            {/* Right: All Charts ({allPopulatedCharts.length}) Browser Toggle & Training Hands X/169 button */}
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setShowAllChartsBrowser(prev => !prev)}
+                className={`px-3 py-1.5 rounded-lg border text-xs font-semibold flex items-center gap-1.5 transition-colors ${
+                  showAllChartsBrowser
+                    ? 'bg-[#E06C75]/15 text-white border-[#E06C75]'
+                    : 'bg-[#181D29] hover:bg-[#232938] border-[#232938] text-slate-200'
+                }`}
+              >
+                <Layers className="w-3.5 h-3.5 text-[#E06C75]" />
+                <span>All Charts ({allPopulatedCharts.length})</span>
+                {showAllChartsBrowser ? (
+                  <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
+                ) : (
+                  <ChevronRight className="w-3.5 h-3.5 text-slate-400" />
+                )}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setShowTrainingHandsDrawer(true)}
+                className="px-3 py-1.5 rounded-lg bg-[#181D29] hover:bg-[#232938] border border-[#232938] text-xs font-semibold text-slate-200 flex items-center gap-1.5 transition-colors"
+              >
+                <span>🎯 Training Hands {getEffectiveTrainingHands(currentChart).length}/169</span>
+              </button>
+            </div>
           </div>
+
+          {/* EXPANDABLE ALL CHARTS BROWSER (Lists every saved chart per folder + any orphaned/hidden charts) */}
+          {showAllChartsBrowser && (
+            <div className="bg-[#12161F] border border-[#232938] rounded-xl p-3.5 flex flex-col gap-3">
+              <div className="flex items-center justify-between border-b border-[#232938] pb-2">
+                <div className="flex items-center gap-2">
+                  <Layers className="w-4 h-4 text-[#E06C75]" />
+                  <span className="text-xs font-bold uppercase tracking-wider text-white">
+                    All Saved Charts Browser ({allPopulatedCharts.length} total)
+                  </span>
+                  <span className="text-[11px] text-slate-400">
+                    Click any chart to jump directly to its Folder, Situation, Positions & Stack Size.
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowAllChartsBrowser(false)}
+                  className="text-slate-400 hover:text-white p-1"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
+
+              {allPopulatedCharts.length === 0 ? (
+                <div className="text-xs text-slate-400 py-4 text-center bg-[#0B0D12] rounded-lg border border-[#232938]">
+                  No painted charts saved yet. Paint hands on the 13×13 matrix below to save your first chart.
+                </div>
+              ) : (
+                <div className="flex flex-col gap-3">
+                  {state.folders.map(folder => {
+                    const folderCharts = allPopulatedCharts.filter(c => c.folderId === folder.id);
+                    return (
+                      <div key={folder.id} className="bg-[#0B0D12] border border-[#232938] rounded-lg p-2.5 flex flex-col gap-2">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-bold text-slate-200 flex items-center gap-1.5">
+                            <Folder className="w-3.5 h-3.5 text-[#E06C75]" />
+                            <span>{folder.name}</span>
+                            <span className="text-[11px] text-slate-400">({folderCharts.length})</span>
+                          </span>
+                        </div>
+                        {folderCharts.length === 0 ? (
+                          <div className="text-[11px] text-slate-500 pl-5">No painted charts in this folder.</div>
+                        ) : (
+                          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
+                            {folderCharts.map(c => {
+                              const isCurrent = c.spotId === currentSpotId;
+                              const label = `${formatSpotTitle(c)} • ${c.stackDepth} BB (${c.tableSize}-Max)`;
+                              const handCount = Object.keys(c.rawHands || {}).filter(hk => {
+                                const w = c.rawHands[hk];
+                                return w && Object.values(w).reduce((a, b) => a + (b || 0), 0) > 0;
+                              }).length;
+
+                              return (
+                                <div
+                                  key={c.spotId}
+                                  onClick={() => handleJumpToSavedChart(c)}
+                                  className={`group px-2.5 py-2 rounded-lg border text-xs flex items-center justify-between gap-2 cursor-pointer transition-all ${
+                                    isCurrent
+                                      ? 'bg-[#E06C75]/15 border-[#E06C75] text-white'
+                                      : 'bg-[#181D29] border-[#232938] text-slate-200 hover:border-slate-500'
+                                  }`}
+                                >
+                                  <div className="min-w-0 flex-1">
+                                    <div className="font-bold truncate">{formatSpotTitle(c)} • {c.stackDepth} BB</div>
+                                    <div className="text-[10px] text-slate-400">
+                                      {c.tableSize}-Max • {handCount} hands painted
+                                    </div>
+                                  </div>
+                                  <button
+                                    type="button"
+                                    title="Delete Chart"
+                                    onClick={e => {
+                                      e.stopPropagation();
+                                      handleDeleteSavedChart(c.spotId, label);
+                                    }}
+                                    className="p-1 text-slate-400 hover:text-[#E06C75] opacity-70 group-hover:opacity-100 shrink-0"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </button>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+
+                  {/* Orphaned Charts (charts whose folderId does not match any current folder) */}
+                  {(() => {
+                    const folderIds = new Set(state.folders.map(f => f.id));
+                    const orphanedCharts = allPopulatedCharts.filter(c => !folderIds.has(c.folderId));
+                    if (orphanedCharts.length === 0) return null;
+                    return (
+                      <div className="bg-[#0B0D12] border border-[#E5C07B]/50 rounded-lg p-2.5 flex flex-col gap-2">
+                        <div className="text-xs font-bold text-[#E5C07B] flex items-center gap-1.5">
+                          <AlertCircle className="w-3.5 h-3.5" />
+                          <span>Other / Unassigned Folder Charts ({orphanedCharts.length})</span>
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
+                          {orphanedCharts.map(c => {
+                            const isCurrent = c.spotId === currentSpotId;
+                            const label = `${formatSpotTitle(c)} • ${c.stackDepth} BB (${c.tableSize}-Max)`;
+                            const handCount = Object.keys(c.rawHands || {}).filter(hk => {
+                              const w = c.rawHands[hk];
+                              return w && Object.values(w).reduce((a, b) => a + (b || 0), 0) > 0;
+                            }).length;
+
+                            return (
+                              <div
+                                key={c.spotId}
+                                onClick={() => handleJumpToSavedChart(c)}
+                                className={`group px-2.5 py-2 rounded-lg border text-xs flex items-center justify-between gap-2 cursor-pointer transition-all ${
+                                  isCurrent
+                                    ? 'bg-[#E06C75]/15 border-[#E06C75] text-white'
+                                    : 'bg-[#181D29] border-[#232938] text-slate-200 hover:border-slate-500'
+                                }`}
+                              >
+                                <div className="min-w-0 flex-1">
+                                  <div className="font-bold truncate">{formatSpotTitle(c)} • {c.stackDepth} BB</div>
+                                  <div className="text-[10px] text-slate-400">
+                                    {c.tableSize}-Max • {handCount} hands painted
+                                  </div>
+                                </div>
+                                <button
+                                  type="button"
+                                  title="Delete Chart"
+                                  onClick={e => {
+                                    e.stopPropagation();
+                                    handleDeleteSavedChart(c.spotId, label);
+                                  }}
+                                  className="p-1 text-slate-400 hover:text-[#E06C75] opacity-70 group-hover:opacity-100 shrink-0"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })()}
+                </div>
+              )}
+            </div>
+          )}
 
           {/* TOP BAR 2: SPOT CONFIGURATION & 3-ROW POSITION MATRIX CARD */}
           <div className="bg-[#12161F] border border-[#232938] rounded-xl p-3.5 flex flex-col gap-3">
@@ -3142,18 +3526,32 @@ export default function App() {
               <div className="flex items-center gap-1.5 flex-wrap">
                 <span className="text-xs font-semibold text-slate-400 mr-1">Players:</span>
                 {state.playerOptions.map(p => (
-                  <button
+                  <div
                     key={p}
-                    type="button"
                     onClick={() => setState(prev => ({ ...prev, activeTableSize: p }))}
-                    className={`px-2.5 py-1 rounded-md text-xs font-semibold transition-all ${
+                    className={`group px-2.5 py-1 rounded-md text-xs font-semibold transition-all cursor-pointer flex items-center gap-1 ${
                       state.activeTableSize === p
                         ? 'bg-[#E06C75] text-[#0B0D12] shadow-sm'
                         : 'bg-[#181D29] text-slate-300 hover:bg-[#232938] border border-[#232938]'
                     }`}
                   >
-                    {p}-Max
-                  </button>
+                    <span>{p}-Max</span>
+                    {state.playerOptions.length > 1 && (
+                      <button
+                        type="button"
+                        title={`Remove ${p}-Max`}
+                        onClick={e => {
+                          e.stopPropagation();
+                          handleDeletePlayerOption(p);
+                        }}
+                        className={`opacity-0 group-hover:opacity-100 transition-opacity ml-0.5 rounded hover:bg-black/20 ${
+                          state.activeTableSize === p ? 'text-[#0B0D12]' : 'text-slate-400 hover:text-[#E06C75]'
+                        }`}
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    )}
+                  </div>
                 ))}
                 {addingPlayer ? (
                   <div className="flex items-center gap-1 bg-[#181D29] border border-[#E06C75] rounded-md px-2 py-0.5">
@@ -3194,18 +3592,32 @@ export default function App() {
               <div className="flex items-center gap-1.5 flex-wrap">
                 <span className="text-xs font-semibold text-slate-400 mr-1">Stack:</span>
                 {state.stackOptions.map(s => (
-                  <button
+                  <div
                     key={s}
-                    type="button"
                     onClick={() => setState(prev => ({ ...prev, activeStackDepth: s }))}
-                    className={`px-2.5 py-1 rounded-md text-xs font-semibold transition-all ${
+                    className={`group px-2.5 py-1 rounded-md text-xs font-semibold transition-all cursor-pointer flex items-center gap-1 ${
                       state.activeStackDepth === s
                         ? 'bg-[#E06C75] text-[#0B0D12] shadow-sm'
                         : 'bg-[#181D29] text-slate-300 hover:bg-[#232938] border border-[#232938]'
                     }`}
                   >
-                    {s} BB
-                  </button>
+                    <span>{s} BB</span>
+                    {state.stackOptions.length > 1 && (
+                      <button
+                        type="button"
+                        title={`Delete ${s} BB stack`}
+                        onClick={e => {
+                          e.stopPropagation();
+                          handleDeleteStackOption(s);
+                        }}
+                        className={`opacity-0 group-hover:opacity-100 transition-opacity ml-0.5 rounded hover:bg-black/20 ${
+                          state.activeStackDepth === s ? 'text-[#0B0D12]' : 'text-slate-400 hover:text-[#E06C75]'
+                        }`}
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    )}
+                  </div>
                 ))}
                 {addingStack ? (
                   <div className="flex items-center gap-1 bg-[#181D29] border border-[#E06C75] rounded-md px-2 py-0.5">
@@ -3334,10 +3746,60 @@ export default function App() {
             {/* Rows 3-5: The 3-Row Interactive Position Grid */}
             <div className="overflow-x-auto">
               <div className="min-w-[600px] flex flex-col gap-1.5">
-                {/* Row 3: 1. Hero Position */}
+                {/* Row 3: 1. Hero Position (with hover delete × and + restore/add position) */}
                 <div className="grid grid-cols-[150px_1fr] items-center gap-2">
-                  <div className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
-                    1. Hero Position
+                  <div className="flex items-center justify-between pr-1">
+                    <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
+                      1. Hero Position
+                    </span>
+                    {addingPosition ? (
+                      <div className="flex items-center gap-1 bg-[#181D29] border border-[#E06C75] rounded px-1.5 py-0.5">
+                        <input
+                          type="text"
+                          placeholder="POS"
+                          value={newPositionName}
+                          onChange={e => setNewPositionName(e.target.value)}
+                          onKeyDown={e => {
+                            if (e.key === 'Enter') handleAddPosition(newPositionName);
+                            if (e.key === 'Escape') setAddingPosition(false);
+                          }}
+                          className="w-10 bg-transparent text-[10px] text-white uppercase focus:outline-none"
+                          autoFocus
+                        />
+                        <button
+                          type="button"
+                          onClick={() => handleAddPosition(newPositionName)}
+                          className="text-[#68B388]"
+                        >
+                          <Check className="w-3 h-3" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setAddingPosition(false)}
+                          className="text-slate-400"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        type="button"
+                        title="Add or restore a position (e.g. UTG, HJ, CO, BTN, SB, BB)"
+                        onClick={() => {
+                          const missing = ['UTG', 'HJ', 'CO', 'BTN', 'SB', 'BB'].find(
+                            p => !seats.includes(p)
+                          );
+                          if (missing) {
+                            handleAddPosition(missing);
+                          } else {
+                            setAddingPosition(true);
+                          }
+                        }}
+                        className="w-5 h-5 rounded bg-[#181D29] hover:bg-[#232938] border border-[#232938] text-slate-300 flex items-center justify-center text-xs font-bold"
+                      >
+                        +
+                      </button>
+                    )}
                   </div>
                   <div
                     className="grid gap-1.5"
@@ -3351,17 +3813,19 @@ export default function App() {
                       const hasPainted = hasSeatPaintedChart(seat);
 
                       return (
-                        <button
+                        <div
                           key={seat}
-                          type="button"
-                          disabled={isDisabled}
-                          onClick={() => setState(prev => ({ ...prev, activeHeroPos: seat }))}
-                          className={`h-8 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1 border ${
+                          onClick={() => {
+                            if (!isDisabled) {
+                              setState(prev => ({ ...prev, activeHeroPos: seat }));
+                            }
+                          }}
+                          className={`group relative h-8 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1 border ${
                             isDisabled
                               ? 'bg-[#0B0D12]/50 text-slate-600 border-[#232938]/50 cursor-not-allowed'
                               : isHero
-                              ? 'bg-[#E06C75] text-[#0B0D12] border-[#E06C75] shadow-sm'
-                              : 'bg-[#181D29] text-slate-200 border-[#232938] hover:border-slate-500'
+                              ? 'bg-[#E06C75] text-[#0B0D12] border-[#E06C75] shadow-sm cursor-pointer'
+                              : 'bg-[#181D29] text-slate-200 border-[#232938] hover:border-slate-500 cursor-pointer'
                           }`}
                         >
                           <span>{seat}</span>
@@ -3374,7 +3838,22 @@ export default function App() {
                               •
                             </span>
                           )}
-                        </button>
+                          {seats.length > 2 && (
+                            <button
+                              type="button"
+                              title={`Delete position ${seat}`}
+                              onClick={e => {
+                                e.stopPropagation();
+                                handleDeletePosition(seat);
+                              }}
+                              className={`absolute right-1 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity p-0.5 rounded hover:bg-black/20 ${
+                                isHero ? 'text-[#0B0D12]' : 'text-slate-400 hover:text-[#E06C75]'
+                              }`}
+                            >
+                              <X className="w-3 h-3" />
+                            </button>
+                          )}
+                        </div>
                       );
                     })}
                   </div>
@@ -4867,6 +5346,66 @@ export default function App() {
                 </button>
               </div>
 
+              {/* ALL SAVED CHARTS QUICK BROWSER (Filter Out Nothing) */}
+              <div className="bg-[#0B0D12] border border-[#232938] rounded-xl p-3 flex flex-col gap-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-slate-300">
+                    All Saved Charts ({allPopulatedCharts.length})
+                  </span>
+                  {allPopulatedCharts.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setSelectedTrainerSpots(allPopulatedCharts.map(c => c.spotId))}
+                      className="text-[11px] font-semibold text-[#68B388] hover:underline"
+                    >
+                      Select All ({allPopulatedCharts.length})
+                    </button>
+                  )}
+                </div>
+                {allPopulatedCharts.length === 0 ? (
+                  <div className="text-[11px] text-slate-500">No painted charts yet.</div>
+                ) : (
+                  <div className="max-h-36 overflow-y-auto flex flex-wrap gap-1.5">
+                    {allPopulatedCharts.map(c => {
+                      const isSel = selectedTrainerSpots.includes(c.spotId);
+                      const fName = state.folders.find(f => f.id === c.folderId)?.name || 'Unassigned';
+                      return (
+                        <div
+                          key={c.spotId}
+                          className={`group flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-semibold border transition-all cursor-pointer ${
+                            isSel
+                              ? 'bg-[#E06C75] text-[#0B0D12] border-[#E06C75]'
+                              : 'bg-[#181D29] text-slate-200 border-[#232938] hover:border-slate-500'
+                          }`}
+                          onClick={() =>
+                            setSelectedTrainerSpots(prev =>
+                              prev.includes(c.spotId) ? prev.filter(id => id !== c.spotId) : [...prev, c.spotId]
+                            )
+                          }
+                        >
+                          <span>
+                            {formatSpotTitle(c)} • {c.stackDepth} BB ({fName})
+                          </span>
+                          <button
+                            type="button"
+                            title="Delete Chart"
+                            onClick={e => {
+                              e.stopPropagation();
+                              handleDeleteSavedChart(c.spotId, `${formatSpotTitle(c)} • ${c.stackDepth} BB`);
+                            }}
+                            className={`p-0.5 rounded hover:bg-black/20 ${
+                              isSel ? 'text-[#0B0D12]' : 'text-slate-400 hover:text-[#E06C75]'
+                            }`}
+                          >
+                            <Trash2 className="w-3 h-3" />
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
               {/* 1. PRIMARY FOLDER SOURCE */}
               <div className="flex flex-col gap-1.5">
                 <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
@@ -5115,82 +5654,154 @@ export default function App() {
               </button>
             </div>
 
-            <div className="my-3 flex flex-wrap items-center justify-between gap-2">
-              <div className="flex flex-wrap items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() =>
-                    updateChart(currentSpotId, c => ({ ...c, customTrainingHands: null }))
-                  }
-                  className={`px-3 py-1 rounded-lg text-xs font-semibold border ${
-                    currentChart.customTrainingHands === null
-                      ? 'bg-[#E06C75] text-[#0B0D12] border-[#E06C75]'
-                      : 'bg-[#181D29] text-slate-300 border-[#232938]'
-                  }`}
-                >
-                  Smart Border Default
-                </button>
-                <button
-                  type="button"
-                  onClick={() =>
-                    updateChart(currentSpotId, c => ({ ...c, customTrainingHands: [...ALL_169_HANDS] }))
-                  }
-                  className="px-3 py-1 rounded-lg text-xs font-semibold bg-[#181D29] text-slate-300 border border-[#232938] hover:border-slate-500"
-                >
-                  All 169 Hands
-                </button>
-              </div>
+            {(() => {
+              const effective = getEffectiveTrainingHands(currentChart);
+              const effectiveSet = new Set(effective);
+              const smartBorderHands = getSmartDefaultTrainingHands(currentChart);
+              const inRangeHands = getInRangeHands(currentChart);
 
-              {/* Two Distinct Color Legend Pills */}
-              <div className="flex items-center gap-2">
-                <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-[#E06C75]/25 text-[#E06C75] border border-[#E06C75] flex items-center gap-1">
-                  <span className="w-2 h-2 rounded-full bg-[#E06C75]" />
-                  In Range (Painted)
-                </span>
-                <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-[#61AFEF]/25 text-[#61AFEF] border border-[#61AFEF] flex items-center gap-1">
-                  <span className="w-2 h-2 rounded-full bg-[#61AFEF]" />
-                  Added Fold Hand
-                </span>
-              </div>
-            </div>
+              const isAll169Active = effective.length === 169;
+              const isSmartBorderActive =
+                smartBorderHands.length > 0 &&
+                effective.length === smartBorderHands.length &&
+                smartBorderHands.every(h => effectiveSet.has(h));
+              const isOnlyInRangeActive =
+                inRangeHands.length > 0 &&
+                effective.length === inRangeHands.length &&
+                inRangeHands.every(h => effectiveSet.has(h));
 
-            <div
-              className="grid gap-1 my-auto select-none"
-              style={{ gridTemplateColumns: 'repeat(13, minmax(0, 1fr))' }}
-            >
-              {ALL_169_HANDS.map(hk => {
-                const effective = getEffectiveTrainingHands(currentChart);
-                const isIncluded = effective.includes(hk);
-                const cellWeights = displayedGrid[hk] || {};
-                const sumOfActiveWeights = Object.values(cellWeights).reduce((a, b) => a + (b || 0), 0);
-                const isInPaintedRange = sumOfActiveWeights > 0;
+              const applyTrainingHandMode = (hk: string, mode: 'select' | 'deselect') => {
+                updateChart(currentSpotId, c => {
+                  const curList = getEffectiveTrainingHands(c);
+                  const nextSet = new Set(curList);
+                  if (mode === 'select') nextSet.add(hk);
+                  else nextSet.delete(hk);
+                  return {
+                    ...c,
+                    customTrainingHands: ALL_169_HANDS.filter(x => nextSet.has(x))
+                  };
+                });
+              };
 
-                return (
-                  <button
-                    key={hk}
-                    type="button"
-                    onClick={() => {
-                      const nextSet = new Set(effective);
-                      if (nextSet.has(hk)) nextSet.delete(hk);
-                      else nextSet.add(hk);
-                      updateChart(currentSpotId, c => ({
-                        ...c,
-                        customTrainingHands: ALL_169_HANDS.filter(x => nextSet.has(x))
-                      }));
-                    }}
-                    className={`aspect-square rounded-[7px] text-[9px] font-bold border transition-all ${
-                      isIncluded
-                        ? isInPaintedRange
-                          ? 'bg-[#E06C75] text-[#0B0D12] border-[#E06C75]'
-                          : 'bg-[#61AFEF] text-[#0B0D12] border-[#61AFEF]'
-                        : 'bg-[#161A24] opacity-40 text-slate-400 border-[#232938]'
-                    }`}
+              return (
+                <>
+                  <div className="my-3 flex flex-wrap items-center justify-between gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
+                      {/* Smart Border 2-Step Toggle Button */}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (isSmartBorderActive) {
+                            // 2nd Click: Strip away border fold hands and keep ONLY inRangeHands
+                            updateChart(currentSpotId, c => ({
+                              ...c,
+                              customTrainingHands: inRangeHands
+                            }));
+                          } else {
+                            // 1st Click: Set selection to inRangeHands + borderFoldHands
+                            updateChart(currentSpotId, c => ({
+                              ...c,
+                              customTrainingHands: smartBorderHands
+                            }));
+                          }
+                        }}
+                        className={`px-3 py-1 rounded-lg text-xs font-semibold border transition-colors ${
+                          isSmartBorderActive
+                            ? 'bg-[#E06C75] text-[#0B0D12] border-[#E06C75]'
+                            : isOnlyInRangeActive
+                            ? 'bg-[#E06C75]/20 text-[#E06C75] border-[#E06C75]'
+                            : 'bg-[#181D29] text-slate-300 border-[#232938] hover:border-slate-500'
+                        }`}
+                      >
+                        {isSmartBorderActive
+                          ? 'Smart Border (Click for In-Range Only)'
+                          : isOnlyInRangeActive
+                          ? 'In-Range Only (Click for +Border)'
+                          : 'Smart Border'}
+                      </button>
+
+                      {/* All 169 2-Step Toggle Button */}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (isAll169Active) {
+                            // 2nd Click: Clear selection completely (0 hands selected)
+                            updateChart(currentSpotId, c => ({
+                              ...c,
+                              customTrainingHands: []
+                            }));
+                          } else {
+                            // 1st Click: Select all 169 hands
+                            updateChart(currentSpotId, c => ({
+                              ...c,
+                              customTrainingHands: [...ALL_169_HANDS]
+                            }));
+                          }
+                        }}
+                        className={`px-3 py-1 rounded-lg text-xs font-semibold border transition-colors ${
+                          isAll169Active
+                            ? 'bg-[#38BDF8] text-[#0B0D12] border-[#38BDF8]'
+                            : 'bg-[#181D29] text-slate-300 border-[#232938] hover:border-slate-500'
+                        }`}
+                      >
+                        {isAll169Active ? 'All 169 (Click to Clear 0)' : 'All 169'}
+                      </button>
+                    </div>
+
+                    {/* Two Distinct Color Legend Pills */}
+                    <div className="flex items-center gap-2">
+                      <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-[#E06C75]/25 text-[#E06C75] border border-[#E06C75] flex items-center gap-1">
+                        <span className="w-2 h-2 rounded-full bg-[#E06C75]" />
+                        In Range (Painted)
+                      </span>
+                      <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-[#38BDF8]/25 text-[#38BDF8] border border-[#38BDF8] flex items-center gap-1">
+                        <span className="w-2 h-2 rounded-full bg-[#38BDF8]" />
+                        Added Fold Hand
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Click-and-Drag 13x13 Mini-Matrix */}
+                  <div
+                    className="grid gap-1 my-auto select-none"
+                    style={{ gridTemplateColumns: 'repeat(13, minmax(0, 1fr))' }}
                   >
-                    {hk}
-                  </button>
-                );
-              })}
-            </div>
+                    {ALL_169_HANDS.map(hk => {
+                      const isIncluded = effectiveSet.has(hk);
+                      const cellWeights = displayedGrid[hk] || {};
+                      const sumOfActiveWeights = Object.values(cellWeights).reduce((a, b) => a + (b || 0), 0);
+                      const isInPaintedRange = sumOfActiveWeights > 0;
+
+                      return (
+                        <div
+                          key={hk}
+                          onMouseDown={e => {
+                            e.preventDefault();
+                            isDraggingTrainingGrid.current = true;
+                            const nextMode: 'select' | 'deselect' = isIncluded ? 'deselect' : 'select';
+                            dragTrainingMode.current = nextMode;
+                            applyTrainingHandMode(hk, nextMode);
+                          }}
+                          onMouseEnter={() => {
+                            if (!isDraggingTrainingGrid.current) return;
+                            applyTrainingHandMode(hk, dragTrainingMode.current);
+                          }}
+                          className={`aspect-square rounded-[7px] text-[9px] font-bold border flex items-center justify-center select-none cursor-pointer transition-colors ${
+                            isIncluded
+                              ? isInPaintedRange
+                                ? 'bg-[#E06C75] text-[#0B0D12] border-[#E06C75]'
+                                : 'bg-[#38BDF8] text-[#0B0D12] border-[#38BDF8]'
+                              : 'bg-[#14171F] opacity-40 text-slate-400 border-[#232938]'
+                          }`}
+                        >
+                          {hk}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </>
+              );
+            })()}
 
             <div className="pt-3 border-t border-[#232938] flex justify-end">
               <button
@@ -5393,7 +6004,7 @@ export default function App() {
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <Crown className="w-5 h-5 text-[#E5C07B]" />
-                <h3 className="text-base font-bold text-white">RangeFlow GTO STUDIO V4 — Pro Tier</h3>
+                <h3 className="text-base font-bold text-white">RangeFlow — Pro Tier</h3>
               </div>
               <button
                 type="button"
