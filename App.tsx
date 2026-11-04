@@ -407,6 +407,7 @@ export interface StudioState {
   leaks: { [leakKey: string]: LeakEntry };
   history: HandHistoryItem[];
   totalHandsTrained: number;
+  dailyHands: { date: string; count: number };
   dailyHandsCount: number;
   dailyHandsDate: string;
   isPro: boolean;
@@ -1413,6 +1414,7 @@ export function getInitialStudioState(): StudioState {
     leaks: {},
     history: [],
     totalHandsTrained: 0,
+    dailyHands: { date: getTodayDateString(), count: 0 },
     dailyHandsCount: 0,
     dailyHandsDate: getTodayDateString(),
     isPro: false,
@@ -1454,7 +1456,16 @@ export function getInitialStudioState(): StudioState {
         : stackOptions.map(s => `${s} BB`);
 
     const today = getTodayDateString();
-    const dailyHandsCount = parsed.dailyHandsDate === today ? (parsed.dailyHandsCount || 0) : 0;
+    const parsedDailyObj =
+      parsed.dailyHands && typeof parsed.dailyHands === 'object'
+        ? parsed.dailyHands
+        : null;
+    const dailyHandsCount =
+      parsedDailyObj && parsedDailyObj.date === today
+        ? Number(parsedDailyObj.count) || 0
+        : parsed.dailyHandsDate === today
+        ? Number(parsed.dailyHandsCount) || 0
+        : 0;
 
     return {
       ...defaultState,
@@ -1466,6 +1477,7 @@ export function getInitialStudioState(): StudioState {
       stackOptions,
       customStacks,
       activePositions,
+      dailyHands: { date: today, count: dailyHandsCount },
       dailyHandsDate: today,
       dailyHandsCount,
       charts: parsed.charts || {},
@@ -1625,8 +1637,10 @@ export default function App() {
   const [showProModal, setShowProModal] = useState<boolean>(false);
   const [proModalReason, setProModalReason] = useState<string>('');
   const [showAuthModal, setShowAuthModal] = useState<boolean>(false);
+  const [authModalNotice, setAuthModalNotice] = useState<string | null>(null);
 
-  // Supabase Auth & Cloud Sync State
+  // Supabase Auth, User Tier & Cloud Sync State (default userTier strictly to 'free')
+  const [userTier, setUserTier] = useState<'free' | 'pro'>('free');
   const [authUser, setAuthUser] = useState<SupabaseUser | null>(null);
   const [syncStatus, setSyncStatus] = useState<'local' | 'syncing' | 'synced' | 'error'>('local');
   const [lastSyncedAt, setLastSyncedAt] = useState<string | null>(null);
@@ -1664,7 +1678,7 @@ export default function App() {
 
         const { data: rows, error: tableErr } = await supabase
           .from('user_data')
-          .select('*', 'user_id', user.id);
+          .select('tier, app_state', 'user_id', user.id);
 
         if (!tableErr && Array.isArray(rows) && rows.length > 0) {
           const row = rows[0];
@@ -1677,6 +1691,10 @@ export default function App() {
             remoteTier = row.tier;
           }
         }
+
+        const resolvedTier: 'free' | 'pro' = remoteTier === 'pro' ? 'pro' : 'free';
+        const resolvedIsPro = resolvedTier === 'pro';
+        setUserTier(resolvedTier);
 
         if (!remoteState && user.user_metadata?.rangeflow_studio_v4) {
           remoteState = user.user_metadata.rangeflow_studio_v4;
@@ -1700,12 +1718,26 @@ export default function App() {
               Array.isArray(remoteState!.stackOptions) && remoteState!.stackOptions.length > 0
                 ? [...new Set<number>(remoteState!.stackOptions)].sort((a, b) => b - a)
                 : prev.stackOptions;
-            const resolvedIsPro =
-              remoteTier !== null ? remoteTier.toLowerCase() === 'pro' : false;
+            const today = getTodayDateString();
+            const remoteDailyObj =
+              remoteState!.dailyHands && typeof remoteState!.dailyHands === 'object'
+                ? remoteState!.dailyHands
+                : null;
+            const syncedDailyCount =
+              remoteDailyObj && remoteDailyObj.date === today
+                ? Number(remoteDailyObj.count) || 0
+                : remoteState!.dailyHandsDate === today
+                ? Number(remoteState!.dailyHandsCount) || 0
+                : prev.dailyHands?.date === today
+                ? prev.dailyHands.count
+                : 0;
             return {
               ...prev,
               ...remoteState,
               isPro: resolvedIsPro,
+              dailyHands: { date: today, count: syncedDailyCount },
+              dailyHandsDate: today,
+              dailyHandsCount: syncedDailyCount,
               folders,
               activeFolderId,
               playerOptions,
@@ -1722,8 +1754,6 @@ export default function App() {
           setSyncStatus('synced');
           if (!silent) triggerToast('Loaded cloud data from Supabase!');
         } else {
-          const resolvedIsPro =
-            remoteTier !== null ? remoteTier.toLowerCase() === 'pro' : false;
           setState(prev => ({ ...prev, isPro: resolvedIsPro }));
           setSyncStatus('synced');
         }
@@ -1736,19 +1766,65 @@ export default function App() {
     [triggerToast]
   );
 
-  // Push current state to Supabase user_data with explicit { onConflict: 'user_id' } and silent 4000ms retry
+  // Re-fetch only .select('tier') from public.user_data on window focus or Refresh PRO Status button click
+  const refreshTierStatus = useCallback(
+    async (silent = true) => {
+      if (!authUser) {
+        if (!silent) {
+          setShowProModal(false);
+          setAuthModalNotice('Please log in or create a free account first to upgrade to PRO.');
+          setShowAuthModal(true);
+        }
+        return;
+      }
+      try {
+        const { data: rows, error } = await supabase
+          .from('user_data')
+          .select('tier', 'user_id', authUser.id);
+        if (!error && Array.isArray(rows) && rows.length > 0) {
+          const nextTier: 'free' | 'pro' = rows[0]?.tier === 'pro' ? 'pro' : 'free';
+          setUserTier(nextTier);
+          setState(prev => (prev.isPro === (nextTier === 'pro') ? prev : { ...prev, isPro: nextTier === 'pro' }));
+          if (!silent) {
+            if (nextTier === 'pro') {
+              setShowProModal(false);
+              triggerToast('PRO Status Unlocked! Welcome to RangeFlow PRO.');
+            } else {
+              triggerToast('Still on FREE tier. Complete checkout first or wait a moment for webhook sync.');
+            }
+          }
+        } else if (!silent) {
+          triggerToast('Still on FREE tier. Complete checkout first or wait a moment for webhook sync.');
+        }
+      } catch (err) {
+        console.warn('Tier status refresh warning:', err);
+      }
+    },
+    [authUser, triggerToast]
+  );
+
+  // Window 'focus' listener so if a user upgrades in another tab, their account switches to PRO automatically
+  useEffect(() => {
+    const handleWindowFocus = () => {
+      if (authUser) {
+        refreshTierStatus(true);
+      }
+    };
+    window.addEventListener('focus', handleWindowFocus);
+    return () => window.removeEventListener('focus', handleWindowFocus);
+  }, [authUser, refreshTierStatus]);
+
+  // Push current state to Supabase user_data with explicit { onConflict: 'user_id' } (DO NOT send tier from browser)
   const pushToCloud = useCallback(
     async (stateToSave: StudioState, sessionUser: SupabaseUser, isRetry = false) => {
       if (!isInitialCloudLoadComplete.current) return;
 
-      const userTier = stateToSave.isPro ? 'pro' : 'free';
       try {
         const { error } = await supabase
           .from('user_data')
           .upsert(
             {
               user_id: sessionUser.id,
-              tier: userTier || 'free',
               app_state: stateToSave,
               updated_at: new Date().toISOString()
             },
@@ -1804,6 +1880,7 @@ export default function App() {
         pullFromCloud(nextUser, false);
       } else if (event === 'SIGNED_OUT') {
         isInitialCloudLoadComplete.current = false;
+        setUserTier('free');
         setState(prev => ({ ...prev, isPro: false }));
         setSyncStatus('local');
         setLastSyncedAt(null);
@@ -1856,25 +1933,25 @@ export default function App() {
   const [actionFormSize, setActionFormSize] = useState<string>('2.5bb');
   const [actionFormColor, setActionFormColor] = useState<string>(STUDIO_SWATCHES[0]);
 
-  // Free vs Pro check helper
+  // Free vs Pro check helper (Max 5 Saved Charts on Free)
   const populatedChartCount = useMemo(() => getPopulatedChartCount(state.charts), [state.charts]);
 
   const canModifyChart = useCallback(
     (targetSpotId: string): boolean => {
-      if (state.isPro) return true;
+      if (userTier === 'pro' || state.isPro) return true;
       const existing = state.charts[targetSpotId];
       if (isChartPopulated(existing)) {
-        // Editing or clearing an already-populated chart is ALWAYS allowed on Free tier
+        // Editing or clearing an already-saved chart is allowed on Free tier
         return true;
       }
       if (populatedChartCount >= 5) {
-        setProModalReason('Free Tier includes up to 5 populated Own Charts. Upgrade to Pro for unlimited charts.');
+        setProModalReason('Free Tier includes up to 5 Saved Charts. Upgrade to PRO for unlimited charts.');
         setShowProModal(true);
         return false;
       }
       return true;
     },
-    [state.isPro, state.charts, populatedChartCount]
+    [userTier, state.isPro, state.charts, populatedChartCount]
   );
 
   // Update a chart and automatically delete any corresponding leak keys on modified hands
@@ -1884,6 +1961,12 @@ export default function App() {
       updater: (chart: ChartData) => ChartData,
       editedHandKeys: string[] = []
     ) => {
+      const existingChart = state.charts[spotId];
+      if (userTier !== 'pro' && !state.isPro && !isChartPopulated(existingChart) && populatedChartCount >= 5) {
+        setProModalReason('Free Tier includes up to 5 Saved Charts. Upgrade to PRO for unlimited charts.');
+        setShowProModal(true);
+        return;
+      }
       setState(prev => {
         const base =
           prev.charts[spotId] ||
@@ -1896,21 +1979,24 @@ export default function App() {
             validPos.villainPos
           );
         const updatedChart = updater(base);
+        const nextCharts = { ...prev.charts };
+        if (isChartPopulated(updatedChart)) {
+          nextCharts[spotId] = updatedChart;
+        } else {
+          delete nextCharts[spotId];
+        }
         const nextLeaks = { ...prev.leaks };
         for (const hk of editedHandKeys) {
           delete nextLeaks[`${spotId}__${hk}`];
         }
         return {
           ...prev,
-          charts: {
-            ...prev.charts,
-            [spotId]: updatedChart
-          },
+          charts: nextCharts,
           leaks: nextLeaks
         };
       });
     },
-    [ validPos.heroPos, validPos.villainPos ]
+    [state.charts, userTier, state.isPro, populatedChartCount, validPos.heroPos, validPos.villainPos]
   );
 
   // ============================================================================
@@ -2222,9 +2308,16 @@ export default function App() {
     ) => {
       clearTrainerTimers();
 
-      // Check Free tier 50 hands/day limit
-      if (!state.isPro && state.dailyHandsCount >= 50) {
-        setProModalReason('You have reached the Free Tier limit of 50 Training Hands per day. Upgrade to Pro for unlimited daily training.');
+      // Check Free tier 50 hands/day limit via dailyHands: { date: 'YYYY-MM-DD', count: number }
+      const todayDate = getTodayDateString();
+      const todayCount =
+        state.dailyHands?.date === todayDate
+          ? state.dailyHands.count
+          : state.dailyHandsDate === todayDate
+          ? state.dailyHandsCount
+          : 0;
+      if (userTier !== 'pro' && !state.isPro && todayCount >= 50) {
+        setProModalReason('You have reached the Free Tier limit of 50 Training Hands per day. Upgrade to PRO for unlimited daily training.');
         setShowProModal(true);
         setTrainerPhase('IDLE');
         return;
@@ -2344,7 +2437,10 @@ export default function App() {
     },
     [
       clearTrainerTimers,
+      userTier,
       state.isPro,
+      state.dailyHands,
+      state.dailyHandsDate,
       state.dailyHandsCount,
       state.leaks,
       state.charts,
@@ -2432,7 +2528,14 @@ export default function App() {
 
       setState(prev => {
         const nextTotal = prev.totalHandsTrained + 1;
-        const nextDaily = prev.dailyHandsCount + 1;
+        const todayStr = getTodayDateString();
+        const prevDailyCount =
+          prev.dailyHands?.date === todayStr
+            ? prev.dailyHands.count
+            : prev.dailyHandsDate === todayStr
+            ? prev.dailyHandsCount
+            : 0;
+        const nextDaily = prevDailyCount + 1;
         const nextLeaks = { ...prev.leaks };
         const existingLeak = nextLeaks[leakKey];
 
@@ -2492,6 +2595,8 @@ export default function App() {
         return {
           ...prev,
           totalHandsTrained: nextTotal,
+          dailyHands: { date: todayStr, count: nextDaily },
+          dailyHandsDate: todayStr,
           dailyHandsCount: nextDaily,
           leaks: nextLeaks,
           history: [historyItem, ...prev.history.slice(0, 99)],
@@ -2664,8 +2769,8 @@ export default function App() {
     heroPos: string | 'ALL',
     label: string
   ) => {
-    if (!state.isPro) {
-      setProModalReason('Spaced Repetition (0 → 1 → 2 → Removed) Leak Training is a Pro Studio feature. Upgrade to Pro to drill your exact leaks.');
+    if (userTier !== 'pro' && !state.isPro) {
+      setProModalReason('Spaced Repetition Leak Trainer is a PRO feature. Upgrade to PRO to drill and clear your leaks.');
       setShowProModal(true);
       return;
     }
@@ -3145,37 +3250,29 @@ export default function App() {
             )}
           </button>
 
-          <button
-            type="button"
-            onClick={() => {
-              setProModalReason('');
-              setShowProModal(true);
-            }}
-            className={`px-3 py-1.5 rounded-lg border text-xs font-semibold flex items-center gap-2 transition-colors ${
-              state.isPro
-                ? 'bg-[#181D29] hover:bg-[#232938] border-[#E5C07B]/40 text-white'
-                : 'bg-[#181D29] hover:bg-[#232938] border-[#232938] text-slate-200'
-            }`}
-          >
-            <Crown className={`w-3.5 h-3.5 ${state.isPro ? 'text-[#E5C07B]' : 'text-slate-400'}`} />
-            <span
-              className={`px-1.5 py-0.5 rounded text-[10px] font-bold uppercase ${
-                state.isPro
-                  ? 'bg-[#E5C07B]/20 text-[#E5C07B] border border-[#E5C07B]/40'
-                  : 'bg-slate-700/60 text-slate-300'
-              }`}
-            >
-              {state.isPro ? 'PRO' : 'FREE'}
-            </span>
-            {!state.isPro && (
-              <>
-                <span className="text-[11px] text-slate-400 hidden sm:inline">
-                  Charts: <strong className="text-slate-200">{populatedChartCount}/5</strong>
-                </span>
-                <span className="text-[11px] font-bold text-[#E5C07B]">Upgrade</span>
-              </>
-            )}
-          </button>
+          {userTier === 'pro' || state.isPro ? (
+            <div className="px-3 py-1.5 rounded-lg bg-[#181D29] border border-[#E5C07B]/60 shadow-[0_0_12px_rgba(229,192,123,0.3)] text-xs font-extrabold text-[#E5C07B] flex items-center gap-1.5 select-none">
+              <Crown className="w-3.5 h-3.5 text-[#E5C07B]" />
+              <span>PRO</span>
+            </div>
+          ) : (
+            <div className="flex items-center gap-2">
+              <span className="px-2.5 py-1 rounded-md bg-[#181D29] border border-[#232938] text-[11px] font-bold uppercase text-slate-300 select-none">
+                FREE
+              </span>
+              <button
+                type="button"
+                onClick={() => {
+                  setProModalReason('');
+                  setShowProModal(true);
+                }}
+                className="px-3 py-1.5 rounded-lg bg-[#E5C07B] hover:bg-[#D4B46A] text-[#0B0D12] text-xs font-extrabold flex items-center gap-1.5 transition-colors shadow-sm"
+              >
+                <Crown className="w-3.5 h-3.5" />
+                <span>Upgrade to PRO</span>
+              </button>
+            </div>
+          )}
 
           {authUser ? (
             <button
@@ -3192,7 +3289,10 @@ export default function App() {
           ) : (
             <button
               type="button"
-              onClick={() => setShowAuthModal(true)}
+              onClick={() => {
+                setAuthModalNotice(null);
+                setShowAuthModal(true);
+              }}
               className="px-3 py-1.5 rounded-lg bg-[#181D29] hover:bg-[#232938] border border-[#232938] text-xs font-semibold text-slate-200 hover:text-white flex items-center gap-1.5 transition-colors"
             >
               <LogIn className="w-3.5 h-3.5 text-[#E06C75]" />
@@ -4046,20 +4146,23 @@ export default function App() {
                     <button
                       type="button"
                       onClick={() => {
-                        if (!state.isPro) {
-                          setProModalReason('✨ Auto-Pure (100%) EV-Preserving Mode is a Pro Studio feature. Upgrade to Pro or toggle Pro Mode in the header to test it.');
+                        if (userTier !== 'pro' && !state.isPro) {
+                          setProModalReason('Auto-Pure (100%) Simplifier is a PRO feature. Upgrade to PRO to purify mixed frequencies with zero EV loss.');
                           setShowProModal(true);
                           return;
                         }
                         updateChart(currentSpotId, c => ({ ...c, strategyMode: 'pure' }));
                       }}
-                      className={`px-2.5 py-1 rounded-md text-xs font-semibold transition-all flex items-center gap-1 ${
-                        currentChart.strategyMode === 'pure'
+                      className={`px-2.5 py-1 rounded-md text-xs font-semibold transition-all flex items-center gap-1.5 ${
+                        currentChart.strategyMode === 'pure' && (userTier === 'pro' || state.isPro)
                           ? 'bg-[#E06C75] text-[#0B0D12] font-bold shadow-sm'
                           : 'text-slate-400 hover:text-slate-200'
                       }`}
                     >
-                      <span>✨ Auto-Pure (100%) PRO</span>
+                      {userTier !== 'pro' && !state.isPro && (
+                        <Lock className="w-3 h-3 text-[#E5C07B]" />
+                      )}
+                      <span>Auto-Pure (100%)</span>
                     </button>
                   </div>
                 </div>
@@ -4487,6 +4590,22 @@ export default function App() {
                 🎯 Training Hands
               </button>
 
+              <button
+                type="button"
+                onClick={() => startLeakTraining('ALL', 'ALL', 'ALL', 'All Active Leaks')}
+                className="px-3 py-1.5 rounded-lg bg-[#181D29] hover:bg-[#232938] border border-[#232938] text-xs font-semibold text-slate-200 flex items-center gap-1.5 transition-colors"
+              >
+                {userTier !== 'pro' && !state.isPro ? (
+                  <Lock className="w-3 h-3 text-[#E5C07B]" />
+                ) : (
+                  <Flame className="w-3.5 h-3.5 text-[#E06C75]" />
+                )}
+                <span>Train Leaks</span>
+                <span className="px-1.5 py-0.2 rounded-full text-[10px] font-bold bg-[#E06C75]/20 text-[#E06C75]">
+                  {activeLeaksList.length} Leaks
+                </span>
+              </button>
+
               {isLeakTrainingMode && leakFilterCriteria && (
                 <div className="flex items-center gap-2 px-3 py-1 rounded-lg bg-[#E06C75]/15 border border-[#E06C75]/40 text-xs font-bold text-[#E06C75]">
                   <Flame className="w-3.5 h-3.5" />
@@ -4528,6 +4647,20 @@ export default function App() {
                   </button>
                 ))}
               </div>
+
+              {userTier !== 'pro' && !state.isPro && (
+                <div className="px-3 py-1.5 rounded-lg bg-[#181D29] border border-[#232938] text-xs font-semibold text-slate-300">
+                  Daily Hands:{' '}
+                  <strong className="text-[#E06C75]">
+                    {(state.dailyHands?.date === getTodayDateString()
+                      ? state.dailyHands.count
+                      : state.dailyHandsDate === getTodayDateString()
+                      ? state.dailyHandsCount
+                      : 0)}{' '}
+                    / 50
+                  </strong>
+                </div>
+              )}
 
               <div className="px-3 py-1.5 rounded-lg bg-[#181D29] border border-[#232938] text-xs font-semibold text-slate-200">
                 Accuracy:{' '}
@@ -5081,8 +5214,12 @@ export default function App() {
                     }}
                     className="w-full py-1.5 rounded-lg bg-[#181D29] hover:bg-[#E06C75] hover:text-[#0B0D12] text-xs font-bold text-[#E06C75] border border-[#E06C75]/40 transition-colors flex items-center justify-center gap-1.5"
                   >
-                    <Play className="w-3.5 h-3.5 fill-current" />
-                    <span>Train Situation Leaks</span>
+                    {userTier !== 'pro' && !state.isPro ? (
+                      <Lock className="w-3.5 h-3.5" />
+                    ) : (
+                      <Play className="w-3.5 h-3.5 fill-current" />
+                    )}
+                    <span>Train Leaks</span>
                   </button>
                 </div>
               );
@@ -5141,8 +5278,12 @@ export default function App() {
                       }}
                       className="w-full py-1 rounded-md bg-[#0B0D12] hover:bg-[#E06C75] hover:text-[#0B0D12] text-[11px] font-bold text-slate-200 border border-[#232938] transition-colors flex items-center justify-center gap-1"
                     >
-                      <Play className="w-3 h-3 fill-current" />
-                      <span>Train Position Leaks</span>
+                      {userTier !== 'pro' && !state.isPro ? (
+                        <Lock className="w-3 h-3" />
+                      ) : (
+                        <Play className="w-3 h-3 fill-current" />
+                      )}
+                      <span>Train Leaks</span>
                     </button>
                   </div>
                 );
@@ -5184,7 +5325,12 @@ export default function App() {
                 }
                 className="px-4 py-2 rounded-lg bg-[#E06C75] hover:bg-[#D15A66] text-[#0B0D12] font-bold text-xs shadow-sm transition-colors flex items-center gap-1.5"
               >
-                <span>🔥 Train All Matching Leaks</span>
+                {userTier !== 'pro' && !state.isPro ? (
+                  <Lock className="w-3.5 h-3.5" />
+                ) : (
+                  <Flame className="w-3.5 h-3.5" />
+                )}
+                <span>Train Leaks ({filteredLeaks.length})</span>
               </button>
             </div>
 
@@ -5994,7 +6140,7 @@ export default function App() {
       )}
 
       {/* ====================================================================
-          UPGRADE TO RANGEFLOW PRO CHECKOUT MODAL
+          UPGRADE TO PRO MODAL (CLOSES ON BACKDROP CLICK)
          ==================================================================== */}
       {showProModal && (
         <div
@@ -6008,7 +6154,7 @@ export default function App() {
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <Crown className="w-5 h-5 text-[#E5C07B]" />
-                <h3 className="text-base font-bold text-white">Upgrade to RangeFlow PRO</h3>
+                <h3 className="text-base font-bold text-white">Upgrade to PRO</h3>
               </div>
               <button
                 type="button"
@@ -6025,89 +6171,75 @@ export default function App() {
               </div>
             )}
 
-            <div className="grid grid-cols-2 gap-3 text-xs">
+            {/* Clean Comparison of FREE vs. PRO */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
               <div className="p-3.5 rounded-xl bg-[#0B0D12] border border-[#232938] flex flex-col gap-2">
-                <div className="font-bold text-slate-300 uppercase">Free Tier</div>
+                <div className="font-bold text-slate-300 uppercase">FREE</div>
                 <ul className="text-slate-400 space-y-1.5 text-[11px]">
-                  <li>• Up to 5 Populated Own Charts ({populatedChartCount}/5 used)</li>
-                  <li>• 50 Training Hands / day ({state.dailyHandsCount}/50 today)</li>
-                  <li>• Full Leaks Dashboard visibility</li>
-                  <li>• Raw (Mixed) Strategy Mode</li>
+                  <li>• Up to 5 Charts ({populatedChartCount}/5 used)</li>
+                  <li>
+                    • 50 Training Hands / Day (
+                    {state.dailyHands?.date === getTodayDateString()
+                      ? state.dailyHands.count
+                      : state.dailyHandsDate === getTodayDateString()
+                      ? state.dailyHandsCount
+                      : 0}
+                    /50 today)
+                  </li>
+                  <li>• Unlimited Folders & Custom Stacks</li>
+                  <li>• Full 6-Max Spot Trainer</li>
                 </ul>
               </div>
               <div className="p-3.5 rounded-xl bg-[#181D29] border border-[#E5C07B]/50 flex flex-col gap-2">
-                <div className="font-bold text-[#E5C07B] uppercase">RangeFlow PRO</div>
+                <div className="font-bold text-[#E5C07B] uppercase">PRO</div>
                 <ul className="text-slate-200 space-y-1.5 text-[11px]">
-                  <li>• Unlimited Populated Own Charts</li>
+                  <li>• Unlimited Charts</li>
                   <li>• Unlimited Daily Training Hands</li>
-                  <li>• ✨ Auto-Pure (100%) EV-Preserving Mode</li>
-                  <li>• 0 → 1 → 2 → Removed SRS Leak Training</li>
+                  <li>• Spaced Repetition Leak Trainer</li>
+                  <li>• Auto-Pure (100%) Simplifier</li>
                 </ul>
               </div>
             </div>
 
-            {!authUser && (
-              <div className="p-3 rounded-xl bg-[#0B0D12] border border-[#232938] flex items-center justify-between gap-3 text-xs">
-                <span className="text-slate-300">
-                  Sign in first so your PRO upgrade automatically links to your RangeFlow cloud account.
-                </span>
-                <button
-                  type="button"
-                  onClick={() => {
+            <div className="flex flex-col gap-2.5 pt-2 border-t border-[#232938]">
+              {/* Primary CTA Button ("Upgrade to PRO") */}
+              <button
+                type="button"
+                onClick={() => {
+                  const sessionUser = authUser;
+                  if (!sessionUser) {
                     setShowProModal(false);
+                    setAuthModalNotice('Please log in or create a free account first to upgrade to PRO.');
                     setShowAuthModal(true);
-                  }}
-                  className="shrink-0 px-3 py-1.5 rounded-lg bg-[#181D29] hover:bg-[#232938] border border-[#E06C75]/50 text-[#E06C75] font-bold text-xs"
-                >
-                  Sign In / Sign Up
-                </button>
-              </div>
-            )}
+                    return;
+                  }
+                  const url =
+                    CHECKOUT_BASE_URL +
+                    '?client_reference_id=' +
+                    sessionUser.id +
+                    '&prefilled_email=' +
+                    encodeURIComponent(sessionUser.email || '') +
+                    '&checkout[custom][user_id]=' +
+                    sessionUser.id +
+                    '&checkout[email]=' +
+                    encodeURIComponent(sessionUser.email || '');
+                  window.open(url, '_blank', 'noopener,noreferrer');
+                }}
+                className="w-full py-2.5 rounded-xl bg-[#E5C07B] hover:bg-[#D4B46A] text-[#0B0D12] font-extrabold text-xs transition-colors flex items-center justify-center gap-2 shadow-md"
+              >
+                <Crown className="w-4 h-4" />
+                <span>Upgrade to PRO</span>
+              </button>
 
-            <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-[#232938]">
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-slate-400">
-                  Status: <strong className="text-white">{state.isPro ? 'PRO ACTIVE' : 'FREE TIER'}</strong>
-                </span>
-                {authUser && (
-                  <button
-                    type="button"
-                    onClick={() => pullFromCloud(authUser, false)}
-                    title="Re-check Pro status from Supabase after completing checkout"
-                    className="px-2 py-1 rounded bg-[#181D29] hover:bg-[#232938] border border-[#232938] text-[11px] font-semibold text-slate-300 flex items-center gap-1"
-                  >
-                    <RefreshCw className="w-3 h-3 text-[#E5C07B]" />
-                    <span>Refresh Status</span>
-                  </button>
-                )}
-              </div>
-
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => setShowProModal(false)}
-                  className="px-3 py-2 rounded-lg bg-[#181D29] text-slate-300 text-xs font-semibold"
-                >
-                  Close
-                </button>
-                {!state.isPro && (
-                  <a
-                    href={
-                      authUser
-                        ? `${CHECKOUT_BASE_URL}${CHECKOUT_BASE_URL.includes('?') ? '&' : '?'}client_reference_id=${encodeURIComponent(
-                            authUser.id
-                          )}&prefilled_email=${encodeURIComponent(authUser.email || '')}`
-                        : CHECKOUT_BASE_URL
-                    }
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="px-4 py-2 rounded-lg bg-[#E5C07B] hover:bg-[#D4B46A] text-[#0B0D12] font-extrabold text-xs transition-colors flex items-center gap-1.5"
-                  >
-                    <Crown className="w-3.5 h-3.5" />
-                    <span>Upgrade to PRO →</span>
-                  </a>
-                )}
-              </div>
+              {/* Secondary Button: "Already upgraded? Refresh PRO Status" */}
+              <button
+                type="button"
+                onClick={() => refreshTierStatus(false)}
+                className="w-full py-2 rounded-xl bg-[#181D29] hover:bg-[#232938] border border-[#232938] text-xs font-semibold text-slate-300 hover:text-white transition-colors flex items-center justify-center gap-1.5"
+              >
+                <RefreshCw className="w-3.5 h-3.5 text-[#E5C07B]" />
+                <span>Already upgraded? Refresh PRO Status</span>
+              </button>
             </div>
           </div>
         </div>
@@ -6160,7 +6292,11 @@ export default function App() {
           syncStatus={syncStatus}
           lastSyncedAt={lastSyncedAt}
           syncErrorMessage={syncErrorMessage}
-          onClose={() => setShowAuthModal(false)}
+          initialNotice={authModalNotice}
+          onClose={() => {
+            setAuthModalNotice(null);
+            setShowAuthModal(false);
+          }}
           onManualPush={() => {
             if (authUser) pushToCloud(state, authUser, false);
           }}
@@ -6191,6 +6327,7 @@ interface SupabaseAuthModalProps {
   syncStatus: 'local' | 'syncing' | 'synced' | 'error';
   lastSyncedAt: string | null;
   syncErrorMessage: string | null;
+  initialNotice?: string | null;
   onClose: () => void;
   onManualPush: () => void;
   onManualPull: () => void;
@@ -6198,6 +6335,7 @@ interface SupabaseAuthModalProps {
 }
 
 function SupabaseAuthModal({
+  initialNotice,
   onClose,
   triggerToast
 }: SupabaseAuthModalProps) {
@@ -6296,6 +6434,12 @@ function SupabaseAuthModal({
             Sign Up
           </button>
         </div>
+
+        {initialNotice && (
+          <div className="p-3 rounded-lg border bg-[#E5C07B]/15 border-[#E5C07B]/50 text-[#E5C07B] text-xs font-medium">
+            {initialNotice}
+          </div>
+        )}
 
         {feedback && (
           <div
