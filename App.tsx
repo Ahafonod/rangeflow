@@ -44,7 +44,7 @@ const SUPABASE_URL = 'https://srrrrfaqkncrplothrrj.supabase.co';
 const SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_lCNWXgpMeLFuhgrSRtFe4A_IJA_Fiyk';
 
 // Replace this URL with your live Stripe or Lemon Squeezy Payment Link
-const CHECKOUT_BASE_URL = 'https://buy.stripe.com/YOUR_PAYMENT_LINK';
+const CHECKOUT_BASE_URL = 'https://rangeflow.lemonsqueezy.com/checkout/buy/0a27b4ce-c89e-49eb-89d9-99c72db9949b';
 
 const SUPABASE_SESSION_KEY = 'rangeflow_supabase_session_v4';
 
