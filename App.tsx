@@ -42,6 +42,10 @@ import {
 
 const SUPABASE_URL = 'https://srrrrfaqkncrplothrrj.supabase.co';
 const SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_lCNWXgpMeLFuhgrSRtFe4A_IJA_Fiyk';
+
+// Replace this URL with your live Stripe or Lemon Squeezy Payment Link
+const CHECKOUT_BASE_URL = 'https://buy.stripe.com/YOUR_PAYMENT_LINK';
+
 const SUPABASE_SESSION_KEY = 'rangeflow_supabase_session_v4';
 
 export interface SupabaseUser {
@@ -1455,6 +1459,7 @@ export function getInitialStudioState(): StudioState {
     return {
       ...defaultState,
       ...parsed,
+      isPro: false,
       folders,
       activeFolderId,
       playerOptions,
@@ -1567,7 +1572,13 @@ export default function App() {
     );
   }, [state.charts, currentSpotId, state.activeFolderId, state.activeTableSize, state.activeStackDepth, state.activeScenario, validPos.heroPos, validPos.villainPos]);
 
-  const displayedGrid = useMemo(() => getDisplayedGrid(currentChart), [currentChart]);
+  const displayedGrid = useMemo(
+    () =>
+      getDisplayedGrid(
+        state.isPro ? currentChart : { ...currentChart, strategyMode: 'raw' }
+      ),
+    [currentChart, state.isPro]
+  );
 
   // Active Brush & Painting State
   const [selectedActionId, setSelectedActionId] = useState<string>(currentChart.actions[0]?.id || 'raise');
@@ -1690,11 +1701,7 @@ export default function App() {
                 ? [...new Set<number>(remoteState!.stackOptions)].sort((a, b) => b - a)
                 : prev.stackOptions;
             const resolvedIsPro =
-              remoteTier !== null
-                ? remoteTier.toLowerCase() === 'pro'
-                : typeof remoteState!.isPro === 'boolean'
-                ? remoteState!.isPro
-                : prev.isPro;
+              remoteTier !== null ? remoteTier.toLowerCase() === 'pro' : false;
             return {
               ...prev,
               ...remoteState,
@@ -1715,6 +1722,9 @@ export default function App() {
           setSyncStatus('synced');
           if (!silent) triggerToast('Loaded cloud data from Supabase!');
         } else {
+          const resolvedIsPro =
+            remoteTier !== null ? remoteTier.toLowerCase() === 'pro' : false;
+          setState(prev => ({ ...prev, isPro: resolvedIsPro }));
           setSyncStatus('synced');
         }
       } catch (err: any) {
@@ -1794,6 +1804,7 @@ export default function App() {
         pullFromCloud(nextUser, false);
       } else if (event === 'SIGNED_OUT') {
         isInitialCloudLoadComplete.current = false;
+        setState(prev => ({ ...prev, isPro: false }));
         setSyncStatus('local');
         setLastSyncedAt(null);
       }
@@ -3134,44 +3145,37 @@ export default function App() {
             )}
           </button>
 
-          <div className="flex items-center bg-[#181D29] border border-[#232938] rounded-lg p-0.5">
-            <button
-              type="button"
-              onClick={() => {
-                setProModalReason('');
-                setShowProModal(true);
-              }}
-              className="px-2.5 py-1 rounded-md text-xs font-medium flex items-center gap-2 hover:bg-[#232938] transition-colors"
+          <button
+            type="button"
+            onClick={() => {
+              setProModalReason('');
+              setShowProModal(true);
+            }}
+            className={`px-3 py-1.5 rounded-lg border text-xs font-semibold flex items-center gap-2 transition-colors ${
+              state.isPro
+                ? 'bg-[#181D29] hover:bg-[#232938] border-[#E5C07B]/40 text-white'
+                : 'bg-[#181D29] hover:bg-[#232938] border-[#232938] text-slate-200'
+            }`}
+          >
+            <Crown className={`w-3.5 h-3.5 ${state.isPro ? 'text-[#E5C07B]' : 'text-slate-400'}`} />
+            <span
+              className={`px-1.5 py-0.5 rounded text-[10px] font-bold uppercase ${
+                state.isPro
+                  ? 'bg-[#E5C07B]/20 text-[#E5C07B] border border-[#E5C07B]/40'
+                  : 'bg-slate-700/60 text-slate-300'
+              }`}
             >
-              <Crown className={`w-3.5 h-3.5 ${state.isPro ? 'text-[#E5C07B]' : 'text-slate-400'}`} />
-              <span>Account / Pro</span>
-              <span
-                className={`px-1.5 py-0.5 rounded text-[10px] font-bold uppercase ${
-                  state.isPro
-                    ? 'bg-[#E5C07B]/20 text-[#E5C07B] border border-[#E5C07B]/40'
-                    : 'bg-slate-700/60 text-slate-300'
-                }`}
-              >
-                {state.isPro ? 'PRO' : 'FREE'}
-              </span>
-              {!state.isPro && (
+              {state.isPro ? 'PRO' : 'FREE'}
+            </span>
+            {!state.isPro && (
+              <>
                 <span className="text-[11px] text-slate-400 hidden sm:inline">
-                  Own Charts: <strong className="text-slate-200">{populatedChartCount} / 5</strong>
+                  Charts: <strong className="text-slate-200">{populatedChartCount}/5</strong>
                 </span>
-              )}
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setState(prev => ({ ...prev, isPro: !prev.isPro }));
-                triggerToast(`Switched to ${!state.isPro ? 'PRO' : 'FREE'} Tier Mode`);
-              }}
-              title="Quick Toggle to test Free vs. Pro tier limits"
-              className="px-2 py-1 text-[10px] font-semibold text-[#E06C75] hover:bg-[#E06C75]/10 rounded transition-colors border-l border-[#232938]"
-            >
-              Toggle {state.isPro ? 'Free' : 'Pro'}
-            </button>
-          </div>
+                <span className="text-[11px] font-bold text-[#E5C07B]">Upgrade</span>
+              </>
+            )}
+          </button>
 
           {authUser ? (
             <button
@@ -5990,12 +5994,12 @@ export default function App() {
       )}
 
       {/* ====================================================================
-          ACCOUNT / PRO UPGRADE MODAL
+          UPGRADE TO RANGEFLOW PRO CHECKOUT MODAL
          ==================================================================== */}
       {showProModal && (
         <div
           onClick={() => setShowProModal(false)}
-          className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4"
+          className="fixed inset-0 bg-black/60 backdrop-blur-xs z-50 flex items-center justify-center p-4"
         >
           <div
             onClick={e => e.stopPropagation()}
@@ -6004,7 +6008,7 @@ export default function App() {
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <Crown className="w-5 h-5 text-[#E5C07B]" />
-                <h3 className="text-base font-bold text-white">RangeFlow — Pro Tier</h3>
+                <h3 className="text-base font-bold text-white">Upgrade to RangeFlow PRO</h3>
               </div>
               <button
                 type="button"
@@ -6032,7 +6036,7 @@ export default function App() {
                 </ul>
               </div>
               <div className="p-3.5 rounded-xl bg-[#181D29] border border-[#E5C07B]/50 flex flex-col gap-2">
-                <div className="font-bold text-[#E5C07B] uppercase">Studio Pro Tier</div>
+                <div className="font-bold text-[#E5C07B] uppercase">RangeFlow PRO</div>
                 <ul className="text-slate-200 space-y-1.5 text-[11px]">
                   <li>• Unlimited Populated Own Charts</li>
                   <li>• Unlimited Daily Training Hands</li>
@@ -6042,10 +6046,42 @@ export default function App() {
               </div>
             </div>
 
-            <div className="flex items-center justify-between pt-2">
-              <span className="text-xs text-slate-400">
-                Current Mode: <strong className="text-white">{state.isPro ? 'PRO ACTIVE' : 'FREE TIER'}</strong>
-              </span>
+            {!authUser && (
+              <div className="p-3 rounded-xl bg-[#0B0D12] border border-[#232938] flex items-center justify-between gap-3 text-xs">
+                <span className="text-slate-300">
+                  Sign in first so your PRO upgrade automatically links to your RangeFlow cloud account.
+                </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowProModal(false);
+                    setShowAuthModal(true);
+                  }}
+                  className="shrink-0 px-3 py-1.5 rounded-lg bg-[#181D29] hover:bg-[#232938] border border-[#E06C75]/50 text-[#E06C75] font-bold text-xs"
+                >
+                  Sign In / Sign Up
+                </button>
+              </div>
+            )}
+
+            <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-[#232938]">
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-slate-400">
+                  Status: <strong className="text-white">{state.isPro ? 'PRO ACTIVE' : 'FREE TIER'}</strong>
+                </span>
+                {authUser && (
+                  <button
+                    type="button"
+                    onClick={() => pullFromCloud(authUser, false)}
+                    title="Re-check Pro status from Supabase after completing checkout"
+                    className="px-2 py-1 rounded bg-[#181D29] hover:bg-[#232938] border border-[#232938] text-[11px] font-semibold text-slate-300 flex items-center gap-1"
+                  >
+                    <RefreshCw className="w-3 h-3 text-[#E5C07B]" />
+                    <span>Refresh Status</span>
+                  </button>
+                )}
+              </div>
+
               <div className="flex items-center gap-2">
                 <button
                   type="button"
@@ -6054,17 +6090,23 @@ export default function App() {
                 >
                   Close
                 </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setState(prev => ({ ...prev, isPro: !prev.isPro }));
-                    setShowProModal(false);
-                    triggerToast(state.isPro ? 'Switched to Free Tier' : 'Activated RangeFlow Studio Pro!');
-                  }}
-                  className="px-4 py-2 rounded-lg bg-[#E5C07B] hover:bg-[#D4B46A] text-[#0B0D12] font-extrabold text-xs transition-colors"
-                >
-                  {state.isPro ? 'Switch to Free Tier (Test Limits)' : 'Activate Pro Studio Now'}
-                </button>
+                {!state.isPro && (
+                  <a
+                    href={
+                      authUser
+                        ? `${CHECKOUT_BASE_URL}${CHECKOUT_BASE_URL.includes('?') ? '&' : '?'}client_reference_id=${encodeURIComponent(
+                            authUser.id
+                          )}&prefilled_email=${encodeURIComponent(authUser.email || '')}`
+                        : CHECKOUT_BASE_URL
+                    }
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="px-4 py-2 rounded-lg bg-[#E5C07B] hover:bg-[#D4B46A] text-[#0B0D12] font-extrabold text-xs transition-colors flex items-center gap-1.5"
+                  >
+                    <Crown className="w-3.5 h-3.5" />
+                    <span>Upgrade to PRO →</span>
+                  </a>
+                )}
               </div>
             </div>
           </div>
