@@ -617,6 +617,253 @@ export function buildSpotId(
   return `${folderId}__${tableSize}__${stackDepth}__${scenarioType}__${heroPos}__${villainPos}`;
 }
 
+export const POS_ORDER = ['UTG', 'HJ', 'CO', 'BTN', 'SB', 'BB'] as const;
+
+export interface TableSeatState {
+  pos: string;
+  isHero: boolean;
+  isVillain: boolean;
+  status: string;
+  bet: number;
+  stack: number;
+  hasCards: boolean;
+  dimmed: boolean;
+  isActingNow: boolean;
+}
+
+export interface TableFrame {
+  seats: TableSeatState[];
+  deadBlinds: number;
+  totalPot: number;
+  awaitingHeroDecision: boolean;
+  stepDelayMs: number;
+}
+
+export function buildPreflopFrames(
+  situation: string,
+  heroPos: string,
+  villainPos: string
+): TableFrame[] {
+  const hIdx = Math.max(0, POS_ORDER.indexOf(heroPos as any));
+  const vIdx = POS_ORDER.indexOf(villainPos as any);
+
+  const isRFI = situation.toLowerCase().includes('rfi') || situation.toLowerCase().includes('first in');
+  const isVsOpen = situation.toLowerCase().includes('open') && !isRFI;
+  const isVs3Bet = situation.toLowerCase().includes('3-bet') || situation.toLowerCase().includes('3bet');
+
+  let deadBlinds = 0;
+
+  // Frame 0 (Blinds Posted): All 6 seats have hole cards, SB has 0.5 BB, BB has 1.0 BB
+  const workingSeats: TableSeatState[] = POS_ORDER.map((pos, idx) => {
+    const isHero = idx === hIdx;
+    const isVillain = !isRFI && idx === vIdx;
+    const initialBlind = pos === 'SB' ? 0.5 : pos === 'BB' ? 1.0 : 0;
+    const initialBadge =
+      pos === 'SB' ? 'SB 0.5 BB' : pos === 'BB' ? 'BB 1.0 BB' : 'WAIT';
+
+    return {
+      pos,
+      isHero,
+      isVillain,
+      status: initialBadge,
+      bet: initialBlind,
+      stack: Number((100 - initialBlind).toFixed(1)),
+      hasCards: true,
+      dimmed: false,
+      isActingNow: false
+    };
+  });
+
+  const frames: TableFrame[] = [];
+
+  const pushSnapshot = (actingIdx: number | null, awaitingHero: boolean, stepDelayMs: number) => {
+    const clonedSeats = workingSeats.map((s, idx) => ({
+      ...s,
+      isActingNow: actingIdx === idx
+    }));
+    const sumOfActiveBets = clonedSeats.reduce((sum, s) => sum + s.bet, 0);
+    const totalPot = Number((deadBlinds + sumOfActiveBets).toFixed(1));
+    frames.push({
+      seats: clonedSeats,
+      deadBlinds,
+      totalPot,
+      awaitingHeroDecision: awaitingHero,
+      stepDelayMs
+    });
+  };
+
+  // Push Frame 0 (Blinds Posted)
+  pushSnapshot(null, false, 220);
+
+  const recordFold = (seatIdx: number) => {
+    const s = workingSeats[seatIdx];
+    if (s.bet > 0) {
+      deadBlinds = Number((deadBlinds + s.bet).toFixed(1));
+      s.bet = 0;
+    }
+    s.status = 'FOLD';
+    s.hasCards = false;
+    s.dimmed = true;
+    pushSnapshot(seatIdx, false, 180);
+  };
+
+  const recordBetOrRaise = (seatIdx: number, amountBB: number, badgeText: string) => {
+    const s = workingSeats[seatIdx];
+    s.bet = amountBB;
+    s.stack = Number((100 - amountBB).toFixed(1));
+    s.status = badgeText;
+    s.hasCards = true;
+    s.dimmed = false;
+    pushSnapshot(seatIdx, false, 260);
+  };
+
+  const recordHeroTurnReady = (badgeText: string) => {
+    const s = workingSeats[hIdx];
+    s.status = badgeText;
+    pushSnapshot(hIdx, true, 0);
+  };
+
+  if (isRFI) {
+    // Case A: RFI (Hero is at hIdx)
+    // 1. Clockwise from UTG (0) to hIdx - 1: Each player acts in turn and Folds
+    for (let i = 0; i < hIdx; i++) {
+      recordFold(i);
+    }
+    // 2. Action arrives at hIdx (Hero): Playback finishes, Hero's seat highlights with YOUR TURN
+    recordHeroTurnReady('YOUR TURN');
+    return frames;
+  }
+
+  if (isVsOpen) {
+    // Case B: vs Open (Villain at vIdx < Hero at hIdx)
+    const safeVIdx = vIdx >= 0 && vIdx < hIdx ? vIdx : 0;
+    // 1. Clockwise from UTG (0) to vIdx - 1: Each player Folds one by one
+    for (let i = 0; i < safeVIdx; i++) {
+      recordFold(i);
+    }
+    // 2. At vIdx (Villain): Villain Opens to 2.5 BB (3.0 BB if SB)
+    const openSize = POS_ORDER[safeVIdx] === 'SB' ? 3.0 : 2.5;
+    recordBetOrRaise(safeVIdx, openSize, `OPEN ${openSize} BB`);
+    // 3. Clockwise from vIdx + 1 to hIdx - 1: Each player between Villain and Hero Folds one by one
+    for (let i = safeVIdx + 1; i < hIdx; i++) {
+      recordFold(i);
+    }
+    // 4. Action arrives at hIdx (Hero): Playback finishes, Hero's seat highlights with YOUR TURN
+    recordHeroTurnReady('YOUR TURN');
+    return frames;
+  }
+
+  if (isVs3Bet) {
+    // Case C: vs 3-Bet (Hero at hIdx < Villain at vIdx)
+    const safeVIdx = vIdx > hIdx ? vIdx : Math.min(POS_ORDER.length - 1, hIdx + 1);
+    // 1. Clockwise from UTG (0) to hIdx - 1: Each player before Hero Folds one by one
+    for (let i = 0; i < hIdx; i++) {
+      recordFold(i);
+    }
+    // 2. At hIdx (Hero): Hero automatically Open Raises to 2.5 BB (3.0 BB if SB)
+    const heroOpenSize = POS_ORDER[hIdx] === 'SB' ? 3.0 : 2.5;
+    recordBetOrRaise(hIdx, heroOpenSize, `OPEN ${heroOpenSize} BB`);
+    // 3. Clockwise from hIdx + 1 to vIdx - 1: Each player between Hero and Villain Folds one by one
+    for (let i = hIdx + 1; i < safeVIdx; i++) {
+      recordFold(i);
+    }
+    // 4. At vIdx (Villain): Villain 3-Bets to 7.5 BB (10.0 BB if SB/BB)
+    const vPos = POS_ORDER[safeVIdx];
+    const villain3BetSize = vPos === 'SB' || vPos === 'BB' ? 10.0 : 7.5;
+    recordBetOrRaise(safeVIdx, villain3BetSize, `3-BET ${villain3BetSize} BB`);
+    // 5. Clockwise from vIdx + 1 to BB (5): Every remaining player after Villain Folds one by one
+    for (let i = safeVIdx + 1; i < POS_ORDER.length; i++) {
+      recordFold(i);
+    }
+    // 6. Action returns to hIdx (Hero): Playback finishes, Hero's seat shows YOUR TURN (vs 3-BET)
+    recordHeroTurnReady('YOUR TURN (vs 3-BET)');
+    return frames;
+  }
+
+  // Case D: vs 4-Bet (Villain at vIdx < Hero at hIdx, e.g., HJ vs UTG 4-Bet)
+  const safeVIdx = vIdx >= 0 && vIdx < hIdx ? vIdx : 0;
+  // 1. Clockwise from UTG (0) to vIdx - 1: Each player before Villain Folds one by one
+  for (let i = 0; i < safeVIdx; i++) {
+    recordFold(i);
+  }
+  // 2. At vIdx (Villain): Villain Opens to 2.5 BB
+  const vOpenSize = POS_ORDER[safeVIdx] === 'SB' ? 3.0 : 2.5;
+  recordBetOrRaise(safeVIdx, vOpenSize, `OPEN ${vOpenSize} BB`);
+  // 3. Clockwise from vIdx + 1 to hIdx - 1: Each player between Villain and Hero Folds one by one
+  for (let i = safeVIdx + 1; i < hIdx; i++) {
+    recordFold(i);
+  }
+  // 4. At hIdx (Hero): Hero automatically 3-Bets to 7.5 BB (10.0 BB if SB/BB)
+  const hPos = POS_ORDER[hIdx];
+  const hero3BetSize = hPos === 'SB' || hPos === 'BB' ? 10.0 : 7.5;
+  recordBetOrRaise(hIdx, hero3BetSize, `3-BET ${hero3BetSize} BB`);
+  // 5. Clockwise from hIdx + 1 to BB (5): Every remaining player Folds one by one (sweeping SB 0.5 BB and BB 1.0 BB into deadBlinds)
+  for (let i = hIdx + 1; i < POS_ORDER.length; i++) {
+    recordFold(i);
+  }
+  // 6. Action wraps back around to vIdx (Villain): Villain 4-Bets to 20.0 BB
+  recordBetOrRaise(safeVIdx, 20.0, '4-BET 20 BB');
+  // 7. Action returns to hIdx (Hero): Playback finishes, Hero's seat highlights with YOUR TURN while keeping Hero's 7.5 BB 3-bet chip
+  recordHeroTurnReady('YOUR TURN');
+  return frames;
+}
+
+export function applyHeroDecisionToFrame(
+  frame: TableFrame,
+  situation: string,
+  heroPos: string,
+  heroFinalAction?: { label: string; betSize?: number } | null
+): TableFrame {
+  if (!heroFinalAction) return frame;
+  const hIdx = POS_ORDER.indexOf(heroPos as any);
+  if (hIdx < 0 || hIdx >= frame.seats.length) return frame;
+
+  const isRFI = situation.toLowerCase().includes('rfi') || situation.toLowerCase().includes('first in');
+  const isVsOpen = situation.toLowerCase().includes('open') && !isRFI;
+  const isVs3Bet = situation.toLowerCase().includes('3-bet') || situation.toLowerCase().includes('3bet');
+
+  const nextSeats = frame.seats.map(s => ({ ...s, isActingNow: false }));
+  const heroSeat = nextSeats[hIdx];
+  let nextDeadBlinds = frame.deadBlinds;
+
+  const actUpper = heroFinalAction.label.toUpperCase();
+  const maxVillainBet = Math.max(...nextSeats.map(s => s.bet));
+
+  if (actUpper.includes('FOLD')) {
+    nextDeadBlinds = Number((nextDeadBlinds + heroSeat.bet).toFixed(1));
+    heroSeat.bet = 0;
+    heroSeat.status = 'FOLD';
+    heroSeat.dimmed = true;
+  } else if (actUpper.includes('CALL')) {
+    heroSeat.bet = maxVillainBet;
+    heroSeat.stack = Number((100 - maxVillainBet).toFixed(1));
+    heroSeat.status = `CALL ${maxVillainBet} BB`;
+  } else {
+    const raiseTo = isRFI
+      ? heroPos === 'SB'
+        ? 3.0
+        : 2.5
+      : isVsOpen
+      ? heroPos === 'SB' || heroPos === 'BB'
+        ? 10.0
+        : 7.5
+      : isVs3Bet
+      ? 20.0
+      : 100.0;
+    heroSeat.bet = raiseTo;
+    heroSeat.stack = Number((100 - raiseTo).toFixed(1));
+    heroSeat.status = `${actUpper} ${raiseTo} BB`;
+  }
+
+  const totalPot = Number((nextDeadBlinds + nextSeats.reduce((sum, s) => sum + s.bet, 0)).toFixed(1));
+  return {
+    ...frame,
+    seats: nextSeats,
+    deadBlinds: nextDeadBlinds,
+    totalPot
+  };
+}
+
 export function getValidPositions(tableSize: number, scenario: ScenarioType, currentHero: string, currentVillain: string) {
   const seats = getSeatsForTableSize(tableSize);
   let heroPos = seats.includes(currentHero) ? currentHero : seats[0];
@@ -630,7 +877,7 @@ export function getValidPositions(tableSize: number, scenario: ScenarioType, cur
   }
 
   if (scenario === 'Facing Open') {
-    // Villain opened BEFORE Hero, so Hero cannot be the very first seat (index 0)
+    // Villain opened BEFORE Hero (vIdx < hIdx), so Hero cannot be the very first seat (index 0)
     const heroIdx = seats.indexOf(heroPos);
     const validHeroIdx = heroIdx <= 0 ? Math.min(seats.length - 1, 1) : heroIdx;
     heroPos = seats[validHeroIdx];
@@ -640,22 +887,21 @@ export function getValidPositions(tableSize: number, scenario: ScenarioType, cur
   }
 
   if (scenario === 'Facing 3-Bet') {
-    // Hero opened (so Hero cannot be BB), and Villain 3-bet (usually after Hero, or any other seat)
-    if (heroPos === 'BB') {
-      heroPos = seats[0];
-    }
-    const otherSeats = seats.filter(s => s !== heroPos);
-    const afterSeats = seats.slice(seats.indexOf(heroPos) + 1);
-    const defaultVillain = afterSeats[0] || otherSeats[0] || 'BB';
-    const villainPos = otherSeats.includes(currentVillain) ? currentVillain : defaultVillain;
+    // Hero opened first (cannot be BB), and Villain 3-bet AFTER Hero (vIdx > hIdx)
+    const heroIdx = seats.indexOf(heroPos);
+    const validHeroIdx = heroIdx < 0 || heroIdx >= seats.length - 1 ? 0 : heroIdx;
+    heroPos = seats[validHeroIdx];
+    const afterSeats = seats.slice(validHeroIdx + 1);
+    const villainPos = afterSeats.includes(currentVillain) ? currentVillain : afterSeats[0] || 'BB';
     return { heroPos, villainPos, seats };
   }
 
-  // Facing 4-Bet: Villain opened or 4-bet against Hero's 3-bet
-  const otherSeats = seats.filter(s => s !== heroPos);
-  const priorSeats = seats.slice(0, seats.indexOf(heroPos));
-  const defaultVillain = priorSeats[0] || otherSeats[0] || seats[0];
-  const villainPos = otherSeats.includes(currentVillain) ? currentVillain : defaultVillain;
+  // Facing 4-Bet: Villain opened BEFORE Hero (vIdx < hIdx), Hero 3-bet, Villain 4-bet
+  const heroIdx = seats.indexOf(heroPos);
+  const validHeroIdx = heroIdx <= 0 ? Math.min(seats.length - 1, 1) : heroIdx;
+  heroPos = seats[validHeroIdx];
+  const priorSeats = seats.slice(0, validHeroIdx);
+  const villainPos = priorSeats.includes(currentVillain) ? currentVillain : priorSeats[0] || seats[0];
   return { heroPos, villainPos, seats };
 }
 
@@ -1413,10 +1659,12 @@ export default function App() {
     [triggerToast]
   );
 
-  // Push current state to Supabase Cloud (saves to both public.user_states and user_metadata)
+  // Push current state to Supabase Cloud silently in background (no top-level UI state flashes on background saves)
   const pushToCloud = useCallback(
     async (snapshot: StudioState, user: SupabaseUser, silent = true) => {
-      setSyncStatus('syncing');
+      if (!silent) {
+        setSyncStatus('syncing');
+      }
       setSyncErrorMessage(null);
       try {
         const nowIso = new Date().toISOString();
@@ -1446,9 +1694,13 @@ export default function App() {
           return;
         }
 
-        setLastSyncedAt(new Date().toLocaleTimeString());
-        setSyncStatus('synced');
-        if (!silent) triggerToast('Synced studio state to Supabase Cloud!');
+        if (!silent) {
+          setLastSyncedAt(new Date().toLocaleTimeString());
+          setSyncStatus('synced');
+          triggerToast('Synced studio state to Supabase Cloud!');
+        } else {
+          setSyncStatus(prev => (prev === 'error' ? 'synced' : prev));
+        }
       } catch (err: any) {
         setSyncStatus('error');
         setSyncErrorMessage(err?.message || 'Cloud push failed');
@@ -1835,17 +2087,15 @@ export default function App() {
     label: string;
   } | null>(null);
 
-  // Active Hand State Machine: PRE_ACTION -> HERO_TURN -> SHOWING_RESULT
+  // Active Hand State Machine & Step-by-Step Preflop Action Playback
   const [trainerPhase, setTrainerPhase] = useState<'IDLE' | 'PRE_ACTION' | 'HERO_TURN' | 'SHOWING_RESULT'>('IDLE');
   const [activeTrainedChart, setActiveTrainedChart] = useState<ChartData | null>(null);
   const [dealtHandKey, setDealtHandKey] = useState<string>('AKs');
   const [dealtCards, setDealtCards] = useState<[string, string]>(['As', 'Ks']);
   const [rngRoll, setRngRoll] = useState<number>(50);
-  const [actingSeatIndex, setActingSeatIndex] = useState<number>(0);
-  const [seatStates, setSeatStates] = useState<{
-    [seat: string]: { status: 'waiting' | 'folded' | 'acted' | 'hero'; betText?: string; betAmount?: number };
-  }>({});
-  const [currentPotBB, setCurrentPotBB] = useState<number>(1.5);
+  const [frames, setFrames] = useState<TableFrame[]>([]);
+  const [frameIdx, setFrameIdx] = useState<number>(0);
+  const [heroFinalAction, setHeroFinalAction] = useState<{ label: string; betSize?: number } | null>(null);
   const [lastResult, setLastResult] = useState<{
     isCorrect: boolean;
     chosenActionName: string;
@@ -1992,117 +2242,24 @@ export default function App() {
       }
 
       const newCards = dealSpecificCardsForHandKey(chosenHandKey);
-      const newRng = Math.floor(Math.random() * 100) + 1;
+      // Roll RNG 0-99
+      const newRng = Math.floor(Math.random() * 100);
+      const handFrames = buildPreflopFrames(
+        chosenChart.scenarioType,
+        chosenChart.heroPos,
+        chosenChart.villainPos
+      );
 
       setActiveTrainedChart(chosenChart);
       setDealtHandKey(chosenHandKey);
       setDealtCards(newCards);
       setRngRoll(newRng);
       setActiveLeakKeyForHand(chosenLeakKey);
+      setFrames(handFrames);
+      setFrameIdx(trainerSpeed === 'Instant' ? Math.max(0, handFrames.length - 1) : 0);
+      setHeroFinalAction(null);
       setLastResult(null);
-
-      const seats = getSeatsForTableSize(chosenChart.tableSize);
-      const heroIdx = seats.indexOf(chosenChart.heroPos);
-
-      // Build sequence of seats acting before Hero
-      const initialStates: {
-        [seat: string]: { status: 'waiting' | 'folded' | 'acted' | 'hero'; betText?: string; betAmount?: number };
-      } = {};
-      seats.forEach(s => {
-        initialStates[s] = { status: s === chosenChart!.heroPos ? 'hero' : 'waiting' };
-      });
-      // Blinds initial pot
-      setCurrentPotBB(1.5);
-      setSeatStates(initialStates);
-
-      // Build choreography steps prior to Hero's turn
-      const steps: { seat: string; status: 'folded' | 'acted'; betText?: string; betAmount?: number }[] = [];
-      const vSizeNum = parseNumericBB(chosenChart.villainSize);
-
-      if (chosenChart.scenarioType === 'Open Raise (RFI)') {
-        for (let i = 0; i < heroIdx; i++) {
-          steps.push({ seat: seats[i], status: 'folded' });
-        }
-      } else if (chosenChart.scenarioType === 'Facing Open') {
-        const vIdx = seats.indexOf(chosenChart.villainPos);
-        for (let i = 0; i < heroIdx; i++) {
-          if (i === vIdx) {
-            steps.push({
-              seat: seats[i],
-              status: 'acted',
-              betText: `Open ${chosenChart.villainSize}`,
-              betAmount: vSizeNum
-            });
-          } else {
-            steps.push({ seat: seats[i], status: 'folded' });
-          }
-        }
-      } else if (chosenChart.scenarioType === 'Facing 3-Bet') {
-        // Hero opened first, Villain 3-bet
-        const heroOpenSize = chosenChart.actions.find(a => a.id === 'call')?.size || '2.5bb';
-        steps.push({
-          seat: chosenChart.heroPos,
-          status: 'hero',
-          betText: `Open ${heroOpenSize}`,
-          betAmount: parseNumericBB(heroOpenSize)
-        });
-        steps.push({
-          seat: chosenChart.villainPos,
-          status: 'acted',
-          betText: `3-Bet ${chosenChart.villainSize}`,
-          betAmount: vSizeNum
-        });
-      } else if (chosenChart.scenarioType === 'Facing 4-Bet') {
-        steps.push({
-          seat: chosenChart.villainPos,
-          status: 'acted',
-          betText: `4-Bet ${chosenChart.villainSize}`,
-          betAmount: vSizeNum
-        });
-      }
-
-      const stepDelay = trainerSpeed === 'Instant' ? 0 : trainerSpeed === '2x' ? 175 : 350;
-
-      if (stepDelay === 0 || steps.length === 0) {
-        const finalPreStates = { ...initialStates };
-        let pot = 1.5;
-        for (const st of steps) {
-          finalPreStates[st.seat] = {
-            status: st.seat === chosenChart.heroPos ? 'hero' : st.status,
-            betText: st.betText,
-            betAmount: st.betAmount
-          };
-          if (st.betAmount) pot += st.betAmount;
-        }
-        setSeatStates(finalPreStates);
-        setCurrentPotBB(Number(pot.toFixed(1)));
-        setTrainerPhase('HERO_TURN');
-      } else {
-        setTrainerPhase('PRE_ACTION');
-        setActingSeatIndex(0);
-        steps.forEach((st, idx) => {
-          const timerId = window.setTimeout(() => {
-            setActingSeatIndex(idx);
-            setSeatStates(prev => ({
-              ...prev,
-              [st.seat]: {
-                status: st.seat === chosenChart!.heroPos ? 'hero' : st.status,
-                betText: st.betText,
-                betAmount: st.betAmount
-              }
-            }));
-            if (st.betAmount) {
-              setCurrentPotBB(p => Number((p + st.betAmount!).toFixed(1)));
-            }
-          }, idx * stepDelay);
-          preActionTimersRef.current.push(timerId);
-        });
-
-        const endTimer = window.setTimeout(() => {
-          setTrainerPhase('HERO_TURN');
-        }, steps.length * stepDelay + 60);
-        preActionTimersRef.current.push(endTimer);
-      }
+      setTrainerPhase('HERO_TURN');
     },
     [
       clearTrainerTimers,
@@ -2120,11 +2277,35 @@ export default function App() {
     ]
   );
 
-  // Grade Hero's action during HERO_TURN
+  // Step-by-Step Preflop Action Playback Timer (180ms for folds, 260ms for raises)
+  useEffect(() => {
+    if (trainerPhase !== 'HERO_TURN' || frames.length === 0) return;
+    if (frameIdx >= frames.length - 1) return;
+
+    if (trainerSpeed === 'Instant') {
+      setFrameIdx(frames.length - 1);
+      return;
+    }
+
+    const nextFrame = frames[frameIdx + 1];
+    const baseDelay = nextFrame?.stepDelayMs || 220;
+    const delay = trainerSpeed === '2x' ? Math.round(baseDelay * 0.55) : baseDelay;
+
+    const timerId = window.setTimeout(() => {
+      setFrameIdx(prev => Math.min(frames.length - 1, prev + 1));
+    }, delay);
+
+    return () => window.clearTimeout(timerId);
+  }, [trainerPhase, frames, frameIdx, trainerSpeed]);
+
+  // Grade Hero's action during HERO_TURN (if clicked early during playback, immediately jump to final frame)
   const handleTrainerAction = useCallback(
     (chosenActionId: string) => {
       if (trainerPhase !== 'HERO_TURN' || !activeTrainedChart) return;
       clearTrainerTimers();
+      if (frames.length > 0 && frameIdx < frames.length - 1) {
+        setFrameIdx(frames.length - 1);
+      }
 
       const grid = getDisplayedGrid(activeTrainedChart);
       const cell = grid[dealtHandKey] || {};
@@ -2139,7 +2320,7 @@ export default function App() {
         const w = Math.max(0, Math.min(100, cell[act.id] || 0));
         if (w > 0) {
           breakdownParts.push(`${act.name} ${w}%`);
-          if (expectedActionId === 'FOLD' && rngRoll <= cumulative + w) {
+          if (expectedActionId === 'FOLD' && rngRoll < cumulative + w) {
             expectedActionId = act.id;
             expectedActionName = `${act.name} ${act.size}`;
           }
@@ -2159,18 +2340,11 @@ export default function App() {
       const chosenWeight = chosenActionId === 'FOLD' ? foldWeight : (cell[chosenActionId] || 0);
       const isCorrect = chosenActionId === expectedActionId || chosenWeight >= 100;
 
-      // Animate Hero's action on the felt
-      setSeatStates(prev => ({
-        ...prev,
-        [activeTrainedChart.heroPos]: {
-          status: chosenActionId === 'FOLD' ? 'folded' : 'hero',
-          betText: chosenActObj ? `${chosenActObj.name} ${chosenActObj.size}` : 'Fold',
-          betAmount: chosenActObj ? parseNumericBB(chosenActObj.size) : undefined
-        }
-      }));
-      if (chosenActObj) {
-        setCurrentPotBB(p => Number((p + parseNumericBB(chosenActObj.size)).toFixed(1)));
-      }
+      // Immediately update Hero's seat badge & bet chip via getSeatStatesForSpot(situation, heroPos, villainPos, heroFinalAction)
+      setHeroFinalAction({
+        label: chosenActObj ? chosenActObj.name : 'FOLD',
+        betSize: chosenActObj ? parseNumericBB(chosenActObj.size) : 0
+      });
 
       const leakKey = `${activeTrainedChart.spotId}__${dealtHandKey}`;
       let leakLevelText = '';
@@ -2279,6 +2453,8 @@ export default function App() {
       trainerPhase,
       activeTrainedChart,
       clearTrainerTimers,
+      frames.length,
+      frameIdx,
       dealtHandKey,
       rngRoll,
       isLeakTrainingMode,
@@ -2708,41 +2884,19 @@ export default function App() {
           </button>
         </div>
 
-        {/* Right Controls: Cloud Sync / Auth + History + Account / Pro */}
+        {/* Right Controls: History + Account / Pro + Clean Auth / Log Out (No Email or Sync Blinking) */}
         <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={() => setShowAuthModal(true)}
-            className={`px-3 py-1.5 rounded-lg border text-xs font-semibold flex items-center gap-1.5 transition-colors ${
-              authUser
-                ? 'bg-[#181D29] hover:bg-[#232938] border-[#68B388]/40 text-white'
-                : 'bg-[#181D29] hover:bg-[#232938] border-[#232938] text-slate-200'
-            }`}
-          >
-            {syncStatus === 'syncing' ? (
-              <RefreshCw className="w-3.5 h-3.5 text-[#E5C07B] animate-spin" />
-            ) : authUser ? (
-              <Cloud className="w-3.5 h-3.5 text-[#68B388]" />
-            ) : (
-              <CloudOff className="w-3.5 h-3.5 text-slate-400" />
-            )}
-            <span className="max-w-[130px] truncate">
-              {authUser ? authUser.email || 'Cloud Connected' : 'Cloud Sync'}
-            </span>
-            <span
-              className={`px-1.5 py-0.5 rounded text-[9px] font-bold uppercase ${
-                syncStatus === 'synced'
-                  ? 'bg-[#68B388]/20 text-[#68B388]'
-                  : syncStatus === 'syncing'
-                  ? 'bg-[#E5C07B]/20 text-[#E5C07B]'
-                  : syncStatus === 'error'
-                  ? 'bg-[#E06C75]/20 text-[#E06C75]'
-                  : 'bg-slate-700/60 text-slate-300'
-              }`}
+          {syncStatus === 'error' && (
+            <button
+              type="button"
+              onClick={() => setShowAuthModal(true)}
+              title={syncErrorMessage || 'Cloud Sync Error — Click to retry'}
+              className="px-2.5 py-1.5 rounded-lg bg-[#3B181E] border border-[#E06C75] text-[#E06C75] text-xs font-bold flex items-center gap-1"
             >
-              {authUser ? syncStatus : 'Sign In'}
-            </span>
-          </button>
+              <AlertCircle className="w-3.5 h-3.5" />
+              <span>Sync Error</span>
+            </button>
+          )}
 
           <button
             type="button"
@@ -2794,6 +2948,29 @@ export default function App() {
               Toggle {state.isPro ? 'Free' : 'Pro'}
             </button>
           </div>
+
+          {authUser ? (
+            <button
+              type="button"
+              onClick={async () => {
+                await supabase.auth.signOut();
+                triggerToast('Logged out.');
+              }}
+              className="px-3 py-1.5 rounded-lg bg-[#181D29] hover:bg-[#232938] border border-[#232938] text-xs font-semibold text-slate-200 hover:text-white flex items-center gap-1.5 transition-colors"
+            >
+              <LogOut className="w-3.5 h-3.5 text-slate-400" />
+              <span>Log Out</span>
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setShowAuthModal(true)}
+              className="px-3 py-1.5 rounded-lg bg-[#181D29] hover:bg-[#232938] border border-[#232938] text-xs font-semibold text-slate-200 hover:text-white flex items-center gap-1.5 transition-colors"
+            >
+              <LogIn className="w-3.5 h-3.5 text-[#E06C75]" />
+              <span>Sign In</span>
+            </button>
+          )}
         </div>
       </header>
 
@@ -2934,10 +3111,10 @@ export default function App() {
                 <button
                   type="button"
                   onClick={() => setAddingFolder(true)}
-                  className="px-2.5 py-1.5 rounded-lg bg-[#181D29] hover:bg-[#232938] border border-dashed border-slate-600 text-xs font-medium text-slate-300 flex items-center gap-1 transition-colors"
+                  className="px-2.5 py-1.5 rounded-lg bg-[#181D29] hover:bg-[#232938] border border-dashed border-slate-600 text-xs font-medium text-slate-300 flex items-center gap-1.5 transition-colors"
                 >
-                  <Plus className="w-3.5 h-3.5 text-[#E06C75]" />
-                  <span>+ New Folder</span>
+                  <Plus className="w-4 h-4 text-[#E06C75]" />
+                  <span>New Folder</span>
                 </button>
               )}
             </div>
@@ -3133,9 +3310,10 @@ export default function App() {
                 <button
                   type="button"
                   onClick={handleTrainCurrentSpot}
-                  className="px-3.5 py-1.5 rounded-lg bg-[#E06C75] hover:bg-[#D15A66] text-[#0B0D12] font-bold text-xs shadow-sm transition-all flex items-center gap-1.5"
+                  className="px-3.5 py-1.5 rounded-lg bg-[#181D29] hover:bg-[#E06C75] text-[#E06C75] hover:text-[#0B0D12] border border-[#E06C75]/50 font-bold text-xs shadow-sm transition-all flex items-center gap-1.5"
                 >
-                  <span>▶ Train This Spot</span>
+                  <Play className="w-3.5 h-3.5 fill-current" />
+                  <span>Train This Spot</span>
                 </button>
               </div>
 
@@ -3162,8 +3340,8 @@ export default function App() {
                     {seats.map((seat, idx) => {
                       const isHero = seat === validPos.heroPos;
                       const isDisabled =
-                        (state.activeScenario === 'Open Raise (RFI)' && seat === 'BB') ||
-                        (state.activeScenario === 'Facing Open' && idx === 0);
+                        ((state.activeScenario === 'Open Raise (RFI)' || state.activeScenario === 'Facing 3-Bet') && seat === 'BB') ||
+                        ((state.activeScenario === 'Facing Open' || state.activeScenario === 'Facing 4-Bet') && idx === 0);
                       const hasPainted = hasSeatPaintedChart(seat);
 
                       return (
@@ -3229,7 +3407,10 @@ export default function App() {
                       }
 
                       // Seat is BEFORE Hero (idx < heroIdx)
-                      if (state.activeScenario === 'Open Raise (RFI)') {
+                      if (
+                        state.activeScenario === 'Open Raise (RFI)' ||
+                        state.activeScenario === 'Facing 3-Bet'
+                      ) {
                         return (
                           <div
                             key={seat}
@@ -3243,10 +3424,8 @@ export default function App() {
                       const isVillain = seat === validPos.villainPos;
                       const actionLabel =
                         state.activeScenario === 'Facing Open'
-                          ? `Open ${currentChart.villainSize}`
-                          : state.activeScenario === 'Facing 3-Bet'
-                          ? `3-Bet ${currentChart.villainSize}`
-                          : `4-Bet ${currentChart.villainSize}`;
+                          ? `Open ${seat === 'SB' ? '3.0bb' : '2.5bb'}`
+                          : `4-Bet 20bb`;
 
                       return (
                         <button
@@ -3299,15 +3478,9 @@ export default function App() {
                       }
 
                       // Seat is AFTER Hero (idx > heroIdx)
-                      if (
-                        state.activeScenario === 'Facing 3-Bet' ||
-                        state.activeScenario === 'Facing 4-Bet'
-                      ) {
+                      if (state.activeScenario === 'Facing 3-Bet') {
                         const isVillain = seat === validPos.villainPos;
-                        const label =
-                          state.activeScenario === 'Facing 3-Bet'
-                            ? `3-Bet ${currentChart.villainSize}`
-                            : `4-Bet ${currentChart.villainSize}`;
+                        const label = `3-Bet ${seat === 'SB' || seat === 'BB' ? '10bb' : '7.5bb'}`;
                         return (
                           <button
                             key={seat}
@@ -3319,8 +3492,19 @@ export default function App() {
                                 : 'bg-[#181D29] text-slate-400 border-[#232938] hover:text-slate-200'
                             }`}
                           >
-                            {isVillain ? label : 'Yet to Act'}
+                            {isVillain ? label : 'Fold'}
                           </button>
+                        );
+                      }
+
+                      if (state.activeScenario === 'Facing 4-Bet') {
+                        return (
+                          <div
+                            key={seat}
+                            className="h-7 rounded-md bg-[#181D29]/50 border border-[#232938] text-slate-500 text-[11px] flex items-center justify-center"
+                          >
+                            Fold
+                          </div>
                         );
                       }
 
@@ -3931,147 +4115,195 @@ export default function App() {
                   </button>
                 </div>
 
-                {/* Oval Poker Table Felt */}
-                <div className="relative my-auto mx-auto w-full max-w-[880px] h-[340px] rounded-[170px] bg-gradient-to-b from-[#16242F] to-[#0F1822] border-[8px] border-[#1E2534] shadow-2xl flex items-center justify-center">
-                  {/* Inner Felt Rim Line */}
-                  <div className="absolute inset-4 rounded-[150px] border border-white/10 pointer-events-none" />
+                {/* Oval Poker Table Felt — Step-by-Step Preflop Action Playback */}
+                {(() => {
+                  const activeFrames =
+                    frames.length > 0
+                      ? frames
+                      : buildPreflopFrames(
+                          activeTrainedChart.scenarioType,
+                          activeTrainedChart.heroPos,
+                          activeTrainedChart.villainPos
+                        );
+                  const clampedIdx = Math.min(frameIdx, activeFrames.length - 1);
+                  const baseFrame = activeFrames[clampedIdx] || activeFrames[activeFrames.length - 1];
+                  const currentFrame =
+                    trainerPhase === 'SHOWING_RESULT'
+                      ? applyHeroDecisionToFrame(
+                          activeFrames[activeFrames.length - 1],
+                          activeTrainedChart.scenarioType,
+                          activeTrainedChart.heroPos,
+                          heroFinalAction
+                        )
+                      : baseFrame;
 
-                  {/* Center Pot & RNG Badge */}
-                  <div className="flex flex-col items-center gap-2 z-10">
-                    <div className="px-4 py-1 rounded-full bg-[#0B0D12]/90 border border-[#232938] text-xs font-bold text-[#E5C07B] shadow-md">
-                      Pot: {currentPotBB} BB
-                    </div>
+                  const hIdx = POS_ORDER.indexOf(activeTrainedChart.heroPos as any);
+                  const safeHeroIdx = hIdx >= 0 ? hIdx : 0;
+                  // Rotate POS_ORDER clockwise so Hero is anchored at bottom center (index 0)
+                  const rotatedSeats = POS_ORDER.map(
+                    (_, i) => currentFrame.seats[(safeHeroIdx + i) % POS_ORDER.length]
+                  );
 
-                    {/* Always roll and display 1-100 RNG badge on the table felt for every hand */}
-                    <div className="px-3 py-1 rounded-lg bg-[#181D29]/95 border border-white/15 text-xs font-bold text-white shadow flex items-center gap-1.5">
-                      <span className="text-slate-400">RNG:</span>
-                      <span className="text-[#E06C75] text-sm tabular-nums">{rngRoll}</span>
-                    </div>
-                  </div>
+                  return (
+                    <div className="relative my-auto mx-auto w-full max-w-[880px] h-[340px] rounded-[170px] bg-gradient-to-b from-[#16242F] to-[#0F1822] border-[8px] border-[#1E2534] shadow-2xl flex items-center justify-center">
+                      {/* Inner Felt Rim Line */}
+                      <div className="absolute inset-4 rounded-[150px] border border-white/10 pointer-events-none" />
 
-                  {/* Seats Arranged Clockwise Around the Table (Hero always anchored at bottom center) */}
-                  {(() => {
-                    const tSeats = getSeatsForTableSize(activeTrainedChart.tableSize);
-                    const hIdx = tSeats.indexOf(activeTrainedChart.heroPos);
-                    // Rotate so Hero is index 0 (bottom center, 90 deg)
-                    const rotated = tSeats.map((_, i) => tSeats[(hIdx + i) % tSeats.length]);
+                      {/* Center Total Pot Pill (No RNG on the table felt) */}
+                      <div className="flex flex-col items-center z-10 -translate-y-4">
+                        <div className="px-4 py-1.5 rounded-full bg-[#0B0D12]/90 border border-[#232938] text-xs font-bold text-[#E5C07B] shadow-md">
+                          Pot: {currentFrame.totalPot} BB
+                        </div>
+                      </div>
 
-                    return rotated.map((seatName, idx) => {
-                      const angleDeg = 90 + (idx * 360) / rotated.length;
-                      const angleRad = (angleDeg * Math.PI) / 180;
-                      const rx = 42; // % of width
-                      const ry = 41; // % of height
-                      const leftPct = 50 + rx * Math.cos(angleRad);
-                      const topPct = 50 + ry * Math.sin(angleRad);
+                      {/* Seats Arranged Clockwise Around the Table (Hero anchored at bottom center) */}
+                      {rotatedSeats.map((seatObj, idx) => {
+                        const angleDeg = 90 + (idx * 360) / rotatedSeats.length;
+                        const angleRad = (angleDeg * Math.PI) / 180;
+                        const rx = 42; // % of width
+                        const ry = 41; // % of height
+                        const leftPct = 50 + rx * Math.cos(angleRad);
+                        const topPct = 50 + ry * Math.sin(angleRad);
 
-                      const st = seatStates[seatName] || { status: 'waiting' };
-                      const isHeroSeat = idx === 0;
-                      const isFolded = st.status === 'folded';
+                        const isHeroSeat = seatObj.isHero;
+                        const chipLeftPct = 50 + rx * 0.52 * Math.cos(angleRad);
+                        const chipTopPct = 50 + ry * 0.48 * Math.sin(angleRad);
 
-                      // Chip position slightly closer to center
-                      const chipLeftPct = 50 + rx * 0.62 * Math.cos(angleRad);
-                      const chipTopPct = 50 + ry * 0.62 * Math.sin(angleRad);
-
-                      return (
-                        <React.Fragment key={seatName}>
-                          {/* Seat Pod */}
-                          <div
-                            style={{ left: `${leftPct}%`, top: `${topPct}%` }}
-                            className={`absolute -translate-x-1/2 -translate-y-1/2 transition-all duration-300 flex flex-col items-center ${
-                              isFolded ? 'opacity-45 scale-95' : 'opacity-100'
-                            }`}
-                          >
-                            {/* Non-Hero Card Backs or Mucking animation */}
-                            {!isHeroSeat && (
-                              <div
-                                className={`flex items-center gap-0.5 mb-1 transition-all duration-300 ${
-                                  isFolded ? 'translate-y-3 scale-75 opacity-0' : 'opacity-100'
-                                }`}
-                              >
-                                <div className="w-5 h-7 rounded bg-gradient-to-br from-[#E06C75] to-[#9B3B44] border border-white/30 shadow" />
-                                <div className="w-5 h-7 rounded bg-gradient-to-br from-[#E06C75] to-[#9B3B44] border border-white/30 shadow -ml-1.5" />
-                              </div>
-                            )}
-
-                            {/* Hero's Two Hole Cards — Crisp White Playing Cards */}
-                            {isHeroSeat && (
-                              <div
-                                className={`flex items-center gap-1.5 mb-1.5 transition-all duration-200 transform ${
-                                  trainerPhase === 'HERO_TURN' || trainerPhase === 'SHOWING_RESULT'
-                                    ? 'translate-y-0 scale-100 opacity-100'
-                                    : 'translate-y-2 scale-90 opacity-60'
-                                }`}
-                              >
-                                {dealtCards.map((cardStr, cIdx) => {
-                                  const rank = cardStr[0];
-                                  const suitChar = cardStr[1];
-                                  const suitObj = SUITS.find(s => s.char === suitChar) || SUITS[0];
-                                  return (
-                                    <div
-                                      key={cIdx}
-                                      className={`w-12 h-16 bg-white text-slate-900 border border-slate-300 shadow-xl rounded-xl flex flex-col justify-between p-1.5 select-none ${
-                                        cIdx === 0 ? '-rotate-2' : 'rotate-2'
-                                      }`}
-                                    >
-                                      <span
-                                        style={{ color: suitObj.color }}
-                                        className="text-sm font-black leading-none"
-                                      >
-                                        {rank}
-                                      </span>
-                                      <span
-                                        style={{ color: suitObj.color }}
-                                        className="text-lg leading-none self-end"
-                                      >
-                                        {suitObj.symbol}
-                                      </span>
-                                    </div>
-                                  );
-                                })}
-                              </div>
-                            )}
-
-                            {/* Seat Name & Stack Pill */}
+                        return (
+                          <React.Fragment key={seatObj.pos}>
+                            {/* Seat Pod */}
                             <div
-                              className={`px-3 py-1 rounded-xl border text-center min-w-[78px] shadow-lg ${
-                                isHeroSeat
-                                  ? 'bg-[#181D29] border-[#E06C75] text-white'
-                                  : st.status === 'acted'
-                                  ? 'bg-[#181D29] border-[#E5C07B] text-white'
-                                  : 'bg-[#12161F] border-[#232938] text-slate-300'
+                              style={{ left: `${leftPct}%`, top: `${topPct}%` }}
+                              className={`absolute -translate-x-1/2 -translate-y-1/2 transition-all duration-150 flex flex-col items-center ${
+                                seatObj.dimmed ? 'opacity-40' : 'opacity-100'
                               }`}
                             >
-                              <div className="text-[11px] font-extrabold tracking-wide flex items-center justify-center gap-1">
-                                <span>{seatName}</span>
-                                {isHeroSeat && (
-                                  <span className="text-[9px] bg-[#E06C75] text-[#0B0D12] px-1 rounded font-black">
-                                    HERO
-                                  </span>
+                              {/* Non-Hero Card Backs (only shown when seatObj.hasCards is true) */}
+                              {!isHeroSeat && seatObj.hasCards && (
+                                <div className="flex items-center gap-0.5 mb-1 transition-all duration-150">
+                                  <div className="w-5 h-7 rounded bg-gradient-to-br from-[#E06C75] to-[#9B3B44] border border-white/30 shadow" />
+                                  <div className="w-5 h-7 rounded bg-gradient-to-br from-[#E06C75] to-[#9B3B44] border border-white/30 shadow -ml-1.5" />
+                                </div>
+                              )}
+
+                              {/* Hero's Two Hole Cards — Crisp White Playing Cards */}
+                              {isHeroSeat && (
+                                <div
+                                  className={`flex items-center gap-1.5 mb-1.5 transition-all duration-200 transform ${
+                                    seatObj.dimmed
+                                      ? 'opacity-40 scale-95'
+                                      : 'translate-y-0 scale-100 opacity-100'
+                                  }`}
+                                >
+                                  {dealtCards.map((cardStr, cIdx) => {
+                                    const rank = cardStr[0];
+                                    const suitChar = cardStr[1];
+                                    const suitObj = SUITS.find(s => s.char === suitChar) || SUITS[0];
+                                    return (
+                                      <div
+                                        key={cIdx}
+                                        className={`w-12 h-16 bg-white text-slate-900 border border-slate-300 shadow-xl rounded-xl flex flex-col justify-between p-1.5 select-none ${
+                                          cIdx === 0 ? '-rotate-2' : 'rotate-2'
+                                        }`}
+                                      >
+                                        <span
+                                          style={{ color: suitObj.color }}
+                                          className="text-sm font-black leading-none"
+                                        >
+                                          {rank}
+                                        </span>
+                                        <span
+                                          style={{ color: suitObj.color }}
+                                          className="text-lg leading-none self-end"
+                                        >
+                                          {suitObj.symbol}
+                                        </span>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              )}
+
+                              {/* Seat Name, Stack & Status Badge (Highlights seatObj.isActingNow with crisp amber/coral border glow) */}
+                              <div
+                                className={`px-3 py-1 rounded-xl border text-center min-w-[92px] shadow-lg transition-all duration-150 ${
+                                  seatObj.isActingNow
+                                    ? isHeroSeat
+                                      ? 'bg-[#181D29] border-[#E06C75] text-white ring-2 ring-[#E06C75] shadow-[0_0_16px_rgba(224,108,117,0.45)]'
+                                      : 'bg-[#181D29] border-[#E5C07B] text-white ring-2 ring-[#E5C07B] shadow-[0_0_16px_rgba(229,192,123,0.45)]'
+                                    : isHeroSeat
+                                    ? 'bg-[#181D29] border-[#E06C75]/70 text-white'
+                                    : seatObj.isVillain && seatObj.bet > 1
+                                    ? 'bg-[#181D29] border-[#E5C07B]/80 text-white'
+                                    : seatObj.dimmed
+                                    ? 'bg-[#0B0D12] border-[#232938] text-slate-400'
+                                    : 'bg-[#12161F] border-[#232938] text-slate-200'
+                                }`}
+                              >
+                                <div className="text-[11px] font-extrabold tracking-wide flex items-center justify-center gap-1">
+                                  <span>{seatObj.pos}</span>
+                                  {isHeroSeat && (
+                                    <span className="text-[9px] bg-[#E06C75] text-[#0B0D12] px-1 rounded font-black">
+                                      HERO
+                                    </span>
+                                  )}
+                                </div>
+                                <div className="text-[10px] text-slate-400 font-semibold">
+                                  {seatObj.stack} BB
+                                </div>
+                                {seatObj.status && (
+                                  <div
+                                    className={`mt-0.5 px-1.5 py-0.2 rounded text-[9px] font-extrabold uppercase tracking-wider ${
+                                      seatObj.status === 'FOLD'
+                                        ? 'bg-slate-800/90 text-slate-300'
+                                        : seatObj.status.startsWith('YOUR TURN')
+                                        ? 'bg-[#E06C75] text-[#0B0D12]'
+                                        : seatObj.isVillain && seatObj.bet > 1
+                                        ? 'bg-[#E5C07B]/20 text-[#E5C07B] border border-[#E5C07B]/40'
+                                        : isHeroSeat && seatObj.bet > 1
+                                        ? 'bg-[#E06C75]/20 text-[#E06C75] border border-[#E06C75]/40'
+                                        : 'bg-[#181D29] text-slate-300 border border-[#232938]'
+                                    }`}
+                                  >
+                                    {seatObj.status}
+                                  </div>
                                 )}
                               </div>
-                              <div className="text-[10px] text-slate-400 font-semibold">
-                                {activeTrainedChart.stackDepth} BB
-                              </div>
                             </div>
-                          </div>
 
-                          {/* Sliding Bet Chip */}
-                          {st.betText && (
-                            <div
-                              style={{ left: `${chipLeftPct}%`, top: `${chipTopPct}%` }}
-                              className="absolute -translate-x-1/2 -translate-y-1/2 z-20 transition-all duration-300 animate-in fade-in zoom-in-95"
-                            >
-                              <div className="px-2.5 py-0.5 rounded-full bg-[#E5C07B] text-[#0B0D12] font-extrabold text-[11px] shadow-lg border border-white/40 whitespace-nowrap flex items-center gap-1">
-                                <span className="w-2 h-2 rounded-full bg-[#0B0D12]/40" />
-                                <span>{st.betText}</span>
-                              </div>
-                            </div>
-                          )}
-                        </React.Fragment>
-                      );
-                    });
-                  })()}
-                </div>
+                            {/* Bet Chip on the Felt: Hero's bet chip placed at bottom-[118px] left-1/2 -translate-x-1/2 */}
+                            {seatObj.bet > 0 && (
+                              isHeroSeat ? (
+                                <div className="absolute bottom-[118px] left-1/2 -translate-x-1/2 z-20 transition-all duration-150 pointer-events-none">
+                                  <div className="px-2.5 py-0.5 rounded-full font-extrabold text-[11px] shadow-lg border bg-[#E06C75] text-[#0B0D12] border-white/50 whitespace-nowrap flex items-center gap-1">
+                                    <span className="w-2 h-2 rounded-full bg-current opacity-40" />
+                                    <span>{seatObj.bet} BB</span>
+                                  </div>
+                                </div>
+                              ) : (
+                                <div
+                                  style={{ left: `${chipLeftPct}%`, top: `${chipTopPct}%` }}
+                                  className="absolute -translate-x-1/2 -translate-y-1/2 z-20 transition-all duration-150 pointer-events-none"
+                                >
+                                  <div
+                                    className={`px-2.5 py-0.5 rounded-full font-extrabold text-[11px] shadow-lg border whitespace-nowrap flex items-center gap-1 ${
+                                      seatObj.isVillain && seatObj.bet > 1
+                                        ? 'bg-[#E5C07B] text-[#0B0D12] border-white/50'
+                                        : 'bg-[#181D29] text-slate-200 border-slate-500'
+                                    }`}
+                                  >
+                                    <span className="w-2 h-2 rounded-full bg-current opacity-40" />
+                                    <span>{seatObj.bet} BB</span>
+                                  </div>
+                                </div>
+                              )
+                            )}
+                          </React.Fragment>
+                        );
+                      })}
+                    </div>
+                  );
+                })()}
 
                 {/* Result Feedback Banner during SHOWING_RESULT */}
                 {trainerPhase === 'SHOWING_RESULT' && lastResult && (
@@ -4117,8 +4349,19 @@ export default function App() {
                   </div>
                 )}
 
-                {/* Bottom Action Dock */}
-                <div className="pt-2 flex flex-wrap items-center justify-center gap-2.5 z-10">
+                {/* Bottom Action Dock with Non-Clickable RNG Pill Next to Action Buttons */}
+                <div
+                  className={`pt-2 flex flex-wrap items-center justify-center gap-2.5 z-10 transition-opacity duration-150 ${
+                    trainerPhase === 'HERO_TURN' && frames.length > 0 && frameIdx < frames.length - 1
+                      ? 'opacity-75'
+                      : 'opacity-100'
+                  }`}
+                >
+                  <div className="px-3.5 py-3 rounded-xl bg-[#1C202B] border border-[#262C3A] text-xs font-mono font-bold text-slate-200 select-none flex items-center gap-1.5">
+                    <span className="text-slate-400">RNG</span>
+                    <span className="text-[#E06C75] tabular-nums">{rngRoll}</span>
+                  </div>
+
                   <button
                     type="button"
                     disabled={trainerPhase !== 'HERO_TURN'}
@@ -4347,9 +4590,10 @@ export default function App() {
                       e.stopPropagation();
                       startLeakTraining(leaksFolderFilter, scen, 'ALL', scen);
                     }}
-                    className="w-full py-1.5 rounded-lg bg-[#181D29] hover:bg-[#E06C75] hover:text-[#0B0D12] text-xs font-bold text-[#E06C75] border border-[#E06C75]/40 transition-colors"
+                    className="w-full py-1.5 rounded-lg bg-[#181D29] hover:bg-[#E06C75] hover:text-[#0B0D12] text-xs font-bold text-[#E06C75] border border-[#E06C75]/40 transition-colors flex items-center justify-center gap-1.5"
                   >
-                    ▶ Train Situation Leaks
+                    <Play className="w-3.5 h-3.5 fill-current" />
+                    <span>Train Situation Leaks</span>
                   </button>
                 </div>
               );
@@ -4406,9 +4650,10 @@ export default function App() {
                         e.stopPropagation();
                         startLeakTraining(leaksFolderFilter, leaksScenarioFilter, pos, `${pos} Leaks`);
                       }}
-                      className="w-full py-1 rounded-md bg-[#0B0D12] hover:bg-[#E06C75] hover:text-[#0B0D12] text-[11px] font-bold text-slate-200 border border-[#232938] transition-colors"
+                      className="w-full py-1 rounded-md bg-[#0B0D12] hover:bg-[#E06C75] hover:text-[#0B0D12] text-[11px] font-bold text-slate-200 border border-[#232938] transition-colors flex items-center justify-center gap-1"
                     >
-                      ▶ Train Position Leaks
+                      <Play className="w-3 h-3 fill-current" />
+                      <span>Train Position Leaks</span>
                     </button>
                   </div>
                 );
@@ -5293,36 +5538,17 @@ interface SupabaseAuthModalProps {
   triggerToast: (msg: string) => void;
 }
 
-const SQL_SETUP_SNIPPET = `create table if not exists public.user_states (
-  user_id uuid primary key references auth.users(id) on delete cascade,
-  state_data jsonb not null default '{}'::jsonb,
-  updated_at timestamptz not null default now()
-);
-
-alter table public.user_states enable row level security;
-
-create policy "Users can manage their own RangeFlow state"
-  on public.user_states for all
-  using (auth.uid() = user_id)
-  with check (auth.uid() = user_id);`;
-
 function SupabaseAuthModal({
-  authUser,
-  syncStatus,
-  lastSyncedAt,
-  syncErrorMessage,
   onClose,
-  onManualPush,
-  onManualPull,
   triggerToast
 }: SupabaseAuthModalProps) {
-  const [authTab, setAuthTab] = useState<'signin' | 'signup' | 'magic' | 'sql'>('signin');
+  const [authTab, setAuthTab] = useState<'login' | 'signup'>('login');
   const [email, setEmail] = useState<string>('');
   const [password, setPassword] = useState<string>('');
   const [loading, setLoading] = useState<boolean>(false);
   const [feedback, setFeedback] = useState<{ type: 'error' | 'success'; text: string } | null>(null);
 
-  const handleSignIn = async (e: React.FormEvent) => {
+  const handleLogIn = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email.trim() || !password) return;
     setLoading(true);
@@ -5335,7 +5561,7 @@ function SupabaseAuthModal({
     if (error) {
       setFeedback({ type: 'error', text: error.message });
     } else if (data?.user) {
-      triggerToast(`Signed in as ${data.user.email}`);
+      triggerToast('Logged in to RangeFlow Cloud!');
       onClose();
     }
   };
@@ -5356,50 +5582,14 @@ function SupabaseAuthModal({
     if (error) {
       setFeedback({ type: 'error', text: error.message });
     } else if (data?.session) {
-      triggerToast('Account created & signed in to Supabase Cloud!');
+      triggerToast('Account created & logged in!');
       onClose();
     } else {
       setFeedback({
         type: 'success',
-        text: 'Account created! Check your email inbox to confirm your address, then sign in.'
+        text: 'Account created! Check your email inbox to confirm your address, then log in.'
       });
     }
-  };
-
-  const handleMagicLink = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!email.trim()) return;
-    setLoading(true);
-    setFeedback(null);
-    const { error } = await supabase.auth.signInWithOtp({ email: email.trim() });
-    setLoading(false);
-    if (error) {
-      setFeedback({ type: 'error', text: error.message });
-    } else {
-      setFeedback({
-        type: 'success',
-        text: `Magic link sent to ${email.trim()}! Check your inbox.`
-      });
-    }
-  };
-
-  const handleCopySql = () => {
-    try {
-      if (navigator.clipboard && navigator.clipboard.writeText) {
-        navigator.clipboard.writeText(SQL_SETUP_SNIPPET);
-        triggerToast('Copied SQL schema to clipboard!');
-        return;
-      }
-    } catch {
-      // Fallback
-    }
-    const ta = document.createElement('textarea');
-    ta.value = SQL_SETUP_SNIPPET;
-    document.body.appendChild(ta);
-    ta.select();
-    document.execCommand('copy');
-    document.body.removeChild(ta);
-    triggerToast('Copied SQL schema to clipboard!');
   };
 
   return (
@@ -5409,267 +5599,101 @@ function SupabaseAuthModal({
     >
       <div
         onClick={e => e.stopPropagation()}
-        className="bg-[#12161F] border border-[#232938] rounded-2xl max-w-lg w-full p-5 flex flex-col gap-4 shadow-2xl"
+        className="bg-[#12161F] border border-[#232938] rounded-2xl max-w-md w-full p-5 flex flex-col gap-4 shadow-2xl"
       >
         <div className="flex items-center justify-between border-b border-[#232938] pb-3">
-          <div className="flex items-center gap-2">
-            <Cloud className="w-4 h-4 text-[#E06C75]" />
-            <h3 className="text-sm font-bold text-white">Supabase Auth & Cloud Sync</h3>
-          </div>
+          <h3 className="text-sm font-bold text-white">
+            {authTab === 'login' ? 'Log In to RangeFlow' : 'Create RangeFlow Account'}
+          </h3>
           <button type="button" onClick={onClose} className="text-slate-400 hover:text-white">
             <X className="w-4 h-4" />
           </button>
         </div>
 
-        {/* Project Connection Pill */}
-        <div className="bg-[#0B0D12] border border-[#232938] rounded-xl p-3 flex items-center justify-between text-xs">
-          <div className="flex items-center gap-2 min-w-0">
-            <Database className="w-3.5 h-3.5 text-[#68B388] shrink-0" />
-            <span className="text-slate-400 truncate">
-              Endpoint: <code className="text-slate-200">{SUPABASE_URL}</code>
-            </span>
-          </div>
-          <span className="px-2 py-0.5 rounded bg-[#68B388]/15 text-[#68B388] text-[10px] font-bold shrink-0">
-            LIVE
-          </span>
+        {/* Clean 2-way toggle between Log In and Sign Up */}
+        <div className="grid grid-cols-2 bg-[#0B0D12] p-1 rounded-xl border border-[#232938]">
+          <button
+            type="button"
+            onClick={() => {
+              setAuthTab('login');
+              setFeedback(null);
+            }}
+            className={`py-1.5 rounded-lg text-xs font-bold transition-colors ${
+              authTab === 'login' ? 'bg-[#181D29] text-white' : 'text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            Log In
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setAuthTab('signup');
+              setFeedback(null);
+            }}
+            className={`py-1.5 rounded-lg text-xs font-bold transition-colors ${
+              authTab === 'signup' ? 'bg-[#181D29] text-white' : 'text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            Sign Up
+          </button>
         </div>
 
-        {authUser ? (
-          <div className="flex flex-col gap-3.5">
-            <div className="bg-[#181D29] border border-[#232938] rounded-xl p-4 flex flex-col gap-2">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <User className="w-4 h-4 text-[#E06C75]" />
-                  <span className="text-xs font-bold text-white">{authUser.email}</span>
-                </div>
-                <span className="px-2 py-0.5 rounded bg-[#68B388]/20 text-[#68B388] text-[10px] font-bold uppercase">
-                  {syncStatus}
-                </span>
-              </div>
-              <div className="text-[11px] text-slate-400">
-                User ID: <code className="text-slate-300">{authUser.id}</code>
-              </div>
-              {lastSyncedAt && (
-                <div className="text-[11px] text-slate-400">
-                  Last Cloud Sync: <strong className="text-slate-200">{lastSyncedAt}</strong>
-                </div>
-              )}
-              {syncErrorMessage && (
-                <div className="text-[11px] text-[#E06C75] mt-1">{syncErrorMessage}</div>
-              )}
-            </div>
-
-            <div className="grid grid-cols-2 gap-2.5">
-              <button
-                type="button"
-                onClick={onManualPush}
-                className="py-2 px-3 rounded-xl bg-[#181D29] hover:bg-[#232938] border border-[#232938] text-xs font-bold text-white flex items-center justify-center gap-1.5 transition-colors"
-              >
-                <Upload className="w-3.5 h-3.5 text-[#E06C75]" />
-                <span>Push Local to Cloud</span>
-              </button>
-              <button
-                type="button"
-                onClick={onManualPull}
-                className="py-2 px-3 rounded-xl bg-[#181D29] hover:bg-[#232938] border border-[#232938] text-xs font-bold text-white flex items-center justify-center gap-1.5 transition-colors"
-              >
-                <Download className="w-3.5 h-3.5 text-[#68B388]" />
-                <span>Pull Cloud to Local</span>
-              </button>
-            </div>
-
-            {/* Optional SQL Table Setup */}
-            <div className="bg-[#0B0D12] border border-[#232938] rounded-xl p-3 flex flex-col gap-2">
-              <div className="flex items-center justify-between">
-                <span className="text-[11px] font-bold text-slate-300">
-                  Postgres Table Schema (<code>public.user_states</code>)
-                </span>
-                <button
-                  type="button"
-                  onClick={handleCopySql}
-                  className="px-2 py-0.5 rounded bg-[#181D29] hover:bg-[#232938] text-[10px] font-bold text-[#E06C75] border border-[#232938]"
-                >
-                  Copy SQL
-                </button>
-              </div>
-              <pre className="text-[10px] text-slate-400 font-mono overflow-x-auto leading-relaxed max-h-28">
-                {SQL_SETUP_SNIPPET}
-              </pre>
-            </div>
-
-            <div className="flex items-center justify-between pt-1">
-              <button
-                type="button"
-                onClick={async () => {
-                  await supabase.auth.signOut();
-                  triggerToast('Signed out of Supabase Cloud.');
-                }}
-                className="px-3.5 py-1.5 rounded-lg bg-[#3B181E] hover:bg-[#E06C75] text-white hover:text-[#0B0D12] text-xs font-bold flex items-center gap-1.5 transition-colors"
-              >
-                <LogOut className="w-3.5 h-3.5" />
-                <span>Sign Out</span>
-              </button>
-              <button
-                type="button"
-                onClick={onClose}
-                className="px-4 py-1.5 rounded-lg bg-[#181D29] text-slate-200 text-xs font-semibold"
-              >
-                Done
-              </button>
-            </div>
-          </div>
-        ) : (
-          <div className="flex flex-col gap-3.5">
-            {/* Auth Mode Tabs */}
-            <div className="grid grid-cols-4 bg-[#0B0D12] p-1 rounded-xl border border-[#232938]">
-              <button
-                type="button"
-                onClick={() => {
-                  setAuthTab('signin');
-                  setFeedback(null);
-                }}
-                className={`py-1.5 rounded-lg text-xs font-bold ${
-                  authTab === 'signin' ? 'bg-[#181D29] text-white' : 'text-slate-400'
-                }`}
-              >
-                Sign In
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setAuthTab('signup');
-                  setFeedback(null);
-                }}
-                className={`py-1.5 rounded-lg text-xs font-bold ${
-                  authTab === 'signup' ? 'bg-[#181D29] text-white' : 'text-slate-400'
-                }`}
-              >
-                Sign Up
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setAuthTab('magic');
-                  setFeedback(null);
-                }}
-                className={`py-1.5 rounded-lg text-xs font-bold ${
-                  authTab === 'magic' ? 'bg-[#181D29] text-white' : 'text-slate-400'
-                }`}
-              >
-                Magic Link
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setAuthTab('sql');
-                  setFeedback(null);
-                }}
-                className={`py-1.5 rounded-lg text-xs font-bold ${
-                  authTab === 'sql' ? 'bg-[#181D29] text-white' : 'text-slate-400'
-                }`}
-              >
-                SQL Setup
-              </button>
-            </div>
-
-            {feedback && (
-              <div
-                className={`p-3 rounded-lg border text-xs font-medium ${
-                  feedback.type === 'error'
-                    ? 'bg-[#3B181E]/60 border-[#E06C75] text-[#E06C75]'
-                    : 'bg-[#143323]/60 border-[#68B388] text-[#68B388]'
-                }`}
-              >
-                {feedback.text}
-              </div>
-            )}
-
-            {authTab === 'sql' ? (
-              <div className="flex flex-col gap-2">
-                <p className="text-xs text-slate-400">
-                  RangeFlow automatically syncs to your Supabase Auth user metadata immediately, and also syncs to <code>public.user_states</code> if created in your Supabase SQL Editor:
-                </p>
-                <pre className="p-3 rounded-xl bg-[#0B0D12] border border-[#232938] text-[10px] text-slate-300 font-mono overflow-x-auto">
-                  {SQL_SETUP_SNIPPET}
-                </pre>
-                <button
-                  type="button"
-                  onClick={handleCopySql}
-                  className="self-end px-3 py-1.5 rounded-lg bg-[#E06C75] text-[#0B0D12] font-bold text-xs"
-                >
-                  Copy SQL Migration
-                </button>
-              </div>
-            ) : (
-              <form
-                onSubmit={
-                  authTab === 'signin'
-                    ? handleSignIn
-                    : authTab === 'signup'
-                    ? handleSignUp
-                    : handleMagicLink
-                }
-                className="flex flex-col gap-3"
-              >
-                <div>
-                  <label className="text-[11px] font-semibold text-slate-400 block mb-1">
-                    Email Address
-                  </label>
-                  <input
-                    type="email"
-                    required
-                    value={email}
-                    onChange={e => setEmail(e.target.value)}
-                    placeholder="you@example.com"
-                    className="w-full bg-[#0B0D12] border border-[#232938] focus:border-[#E06C75] rounded-lg px-3 py-2 text-xs text-white focus:outline-none"
-                  />
-                </div>
-
-                {authTab !== 'magic' && (
-                  <div>
-                    <label className="text-[11px] font-semibold text-slate-400 block mb-1">
-                      Password
-                    </label>
-                    <input
-                      type="password"
-                      required
-                      value={password}
-                      onChange={e => setPassword(e.target.value)}
-                      placeholder="••••••••"
-                      className="w-full bg-[#0B0D12] border border-[#232938] focus:border-[#E06C75] rounded-lg px-3 py-2 text-xs text-white focus:outline-none"
-                    />
-                  </div>
-                )}
-
-                <div className="flex items-center justify-end gap-2 pt-1">
-                  <button
-                    type="button"
-                    onClick={onClose}
-                    className="px-3.5 py-2 rounded-lg bg-[#181D29] text-slate-300 text-xs font-semibold"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={loading}
-                    className="px-4 py-2 rounded-lg bg-[#E06C75] hover:bg-[#D15A66] text-[#0B0D12] text-xs font-bold flex items-center gap-1.5"
-                  >
-                    <LogIn className="w-3.5 h-3.5" />
-                    <span>
-                      {loading
-                        ? 'Connecting...'
-                        : authTab === 'signin'
-                        ? 'Sign In & Sync'
-                        : authTab === 'signup'
-                        ? 'Create Account'
-                        : 'Send Magic Link'}
-                    </span>
-                  </button>
-                </div>
-              </form>
-            )}
+        {feedback && (
+          <div
+            className={`p-3 rounded-lg border text-xs font-medium ${
+              feedback.type === 'error'
+                ? 'bg-[#3B181E]/60 border-[#E06C75] text-[#E06C75]'
+                : 'bg-[#143323]/60 border-[#68B388] text-[#68B388]'
+            }`}
+          >
+            {feedback.text}
           </div>
         )}
+
+        <form onSubmit={authTab === 'login' ? handleLogIn : handleSignUp} className="flex flex-col gap-3">
+          <div>
+            <label className="text-[11px] font-semibold text-slate-400 block mb-1">
+              Email
+            </label>
+            <input
+              type="email"
+              required
+              value={email}
+              onChange={e => setEmail(e.target.value)}
+              placeholder="you@example.com"
+              className="w-full bg-[#0B0D12] border border-[#232938] focus:border-[#E06C75] rounded-lg px-3 py-2 text-xs text-white focus:outline-none"
+            />
+          </div>
+
+          <div>
+            <label className="text-[11px] font-semibold text-slate-400 block mb-1">
+              Password
+            </label>
+            <input
+              type="password"
+              required
+              value={password}
+              onChange={e => setPassword(e.target.value)}
+              placeholder="••••••••"
+              className="w-full bg-[#0B0D12] border border-[#232938] focus:border-[#E06C75] rounded-lg px-3 py-2 text-xs text-white focus:outline-none"
+            />
+          </div>
+
+          <button
+            type="submit"
+            disabled={loading}
+            className="mt-1 w-full py-2.5 rounded-lg bg-[#E06C75] hover:bg-[#D15A66] text-[#0B0D12] text-xs font-bold flex items-center justify-center gap-1.5 transition-colors"
+          >
+            <LogIn className="w-3.5 h-3.5" />
+            <span>
+              {loading
+                ? 'Please wait...'
+                : authTab === 'login'
+                ? 'Log In'
+                : 'Sign Up'}
+            </span>
+          </button>
+        </form>
       </div>
     </div>
   );
