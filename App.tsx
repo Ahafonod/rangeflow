@@ -4350,7 +4350,7 @@ export default function App() {
 
               {/* 13x13 Flat Cut-Corner Cell Grid */}
               <div
-                className="flex-1 w-full h-full grid grid-cols-13 grid-rows-13 gap-1 select-none"
+                className="flex-1 w-full h-full gap-1 p-2 select-none"
                 style={{
                   display: 'grid',
                   gridTemplateColumns: 'repeat(13, minmax(0, 1fr))',
@@ -4412,7 +4412,7 @@ export default function App() {
                       onMouseEnter={() => handleCellMouseEnter(handKey)}
                       onMouseUp={() => handleCellMouseUp(handKey)}
                       style={bgStyle}
-                      className={`relative w-full h-full min-h-[28px] rounded-[6px] overflow-hidden border border-[#262C3A] p-1 flex flex-col justify-between transition-opacity duration-75 select-none cursor-pointer ${
+                      className={`relative w-full h-full min-h-[30px] rounded-[6px] overflow-hidden border border-[#262C3A] p-1 flex flex-col justify-between transition-opacity duration-75 select-none cursor-pointer ${
                         isBucketSpotlight
                           ? belongsToHoveredBucket
                             ? 'opacity-100 scale-[1.03] z-10 ring-2 ring-white/80 shadow-lg'
@@ -5260,8 +5260,12 @@ export default function App() {
                         <span className="text-[11px] text-slate-400">Release [Tab] to close</span>
                       </div>
                       <div
-                        className="grid gap-1"
-                        style={{ gridTemplateColumns: 'repeat(13, minmax(0, 1fr))' }}
+                        className="w-full gap-1"
+                        style={{
+                          display: 'grid',
+                          gridTemplateColumns: 'repeat(13, minmax(0, 1fr))',
+                          gridTemplateRows: 'repeat(13, minmax(0, 1fr))'
+                        }}
                       >
                         {ALL_169_HANDS.map(hk => {
                           const pGrid = getDisplayedGrid(activeTrainedChart);
@@ -6135,8 +6139,12 @@ export default function App() {
 
                   {/* Click-and-Drag 13x13 Mini-Matrix */}
                   <div
-                    className="grid gap-1 my-auto select-none"
-                    style={{ gridTemplateColumns: 'repeat(13, minmax(0, 1fr))' }}
+                    className="w-full gap-1 my-auto select-none"
+                    style={{
+                      display: 'grid',
+                      gridTemplateColumns: 'repeat(13, minmax(0, 1fr))',
+                      gridTemplateRows: 'repeat(13, minmax(0, 1fr))'
+                    }}
                   >
                     {ALL_169_HANDS.map(hk => {
                       const isIncluded = effectiveSet.has(hk);
