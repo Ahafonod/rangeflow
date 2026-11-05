@@ -4914,7 +4914,11 @@ export default function App() {
               <button
                 type="button"
                 onClick={() => startLeakTraining('ALL', 'ALL', 'ALL', 'All Active Leaks')}
-                className="px-3 py-1.5 rounded-lg bg-[#181D29] hover:bg-[#232938] border border-[#232938] text-xs font-semibold text-slate-200 flex items-center gap-1.5 transition-colors"
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all ${
+                  activeLeaksList.length > 0
+                    ? 'bg-[#E06C75]/20 border border-[#E06C75]/50 text-white shadow-[0_0_12px_rgba(224,108,117,0.15)] hover:bg-[#E06C75]/40 hover:border-[#E06C75]/80 hover:text-white hover:shadow-[0_0_16px_rgba(224,108,117,0.28)]'
+                    : 'bg-[#181D29] hover:bg-[#232938] border border-[#232938] text-slate-300'
+                }`}
               >
                 {userTier !== 'pro' && !state.isPro ? (
                   <Lock className="w-3 h-3 text-[#E5C07B]" />
@@ -4925,11 +4929,11 @@ export default function App() {
                     }`}
                   />
                 )}
-                <span>Train Leaks</span>
+                <span className="text-white">Train Leaks</span>
                 <span
                   className={`px-1.5 py-0.2 rounded-full text-[10px] border ${
                     activeLeaksList.length > 0
-                      ? 'bg-[#E06C75]/15 border-[#E06C75]/40 text-[#E06C75] font-bold'
+                      ? 'bg-[#E06C75]/25 border-[#E06C75]/50 text-white font-bold'
                       : 'bg-white/5 border-white/10 text-slate-400 font-semibold'
                   }`}
                 >
@@ -5109,8 +5113,8 @@ export default function App() {
                       {/* Inner Felt Rim Line */}
                       <div className="absolute inset-4 rounded-[150px] border border-white/10 pointer-events-none" />
 
-                      {/* Center Total Pot Pill (No RNG on the table felt) */}
-                      <div className="flex flex-col items-center z-10 -translate-y-4">
+                      {/* Center Total Pot Pill (Positioned at top-[38%] so it never overlaps Hero cards or bet chip) */}
+                      <div className="absolute top-[38%] left-1/2 -translate-x-1/2 -translate-y-1/2 flex flex-col items-center z-10 pointer-events-none">
                         <div className="px-4 py-1.5 rounded-full bg-[#0B0D12]/90 border border-[#232938] text-xs font-bold text-[#E5C07B] shadow-md">
                           Pot: {currentFrame.totalPot} BB
                         </div>
@@ -5144,10 +5148,10 @@ export default function App() {
                                 </div>
                               )}
 
-                              {/* Hero's Two Hole Cards — Crisp White Playing Cards */}
+                              {/* Hero's Two Hole Cards — Larger Crisp White Playing Cards (w-14 h-20, zero overlap with Pot) */}
                               {isHeroSeat && (
                                 <div
-                                  className={`flex items-center gap-1.5 mb-1.5 transition-all duration-200 transform ${
+                                  className={`flex items-center gap-2 mb-1.5 transition-all duration-200 transform ${
                                     seatObj.dimmed
                                       ? 'opacity-40 scale-95'
                                       : 'translate-y-0 scale-100 opacity-100'
@@ -5160,19 +5164,19 @@ export default function App() {
                                     return (
                                       <div
                                         key={cIdx}
-                                        className={`w-12 h-16 bg-white text-slate-900 border border-slate-300 shadow-xl rounded-xl flex flex-col justify-between p-1.5 select-none ${
+                                        className={`w-14 h-20 bg-white text-slate-900 border border-slate-300 shadow-xl rounded-xl flex flex-col justify-between p-2 select-none ${
                                           cIdx === 0 ? '-rotate-2' : 'rotate-2'
                                         }`}
                                       >
                                         <span
                                           style={{ color: suitObj.color }}
-                                          className="text-sm font-black leading-none"
+                                          className="text-base sm:text-lg font-black leading-none"
                                         >
                                           {rank}
                                         </span>
                                         <span
                                           style={{ color: suitObj.color }}
-                                          className="text-lg leading-none self-end"
+                                          className="text-xl leading-none self-end"
                                         >
                                           {suitObj.symbol}
                                         </span>
@@ -5229,10 +5233,10 @@ export default function App() {
                               </div>
                             </div>
 
-                            {/* Bet Chip on the Felt: Hero's bet chip placed at bottom-[118px] left-1/2 -translate-x-1/2 */}
+                            {/* Bet Chip on the Felt: Hero's bet chip placed cleanly at top-[53%] between Pot (38%) and Hero's cards */}
                             {seatObj.bet > 0 && (
                               isHeroSeat ? (
-                                <div className="absolute bottom-[118px] left-1/2 -translate-x-1/2 z-20 transition-all duration-150 pointer-events-none">
+                                <div className="absolute top-[53%] left-1/2 -translate-x-1/2 -translate-y-1/2 z-20 transition-all duration-150 pointer-events-none">
                                   <div className="px-2.5 py-0.5 rounded-full font-extrabold text-[11px] shadow-lg border bg-[#6366F1] text-white border-white/50 whitespace-nowrap flex items-center gap-1">
                                     <span className="w-2 h-2 rounded-full bg-current opacity-40" />
                                     <span>{seatObj.bet} BB</span>
@@ -5583,16 +5587,16 @@ export default function App() {
                       e.stopPropagation();
                       startLeakTraining(leaksFolderFilter, scen, 'ALL', scen);
                     }}
-                    className={`w-full py-1.5 rounded-lg text-xs font-bold border transition-colors flex items-center justify-center gap-1.5 ${
+                    className={`w-full py-1.5 rounded-lg text-xs font-semibold border transition-all flex items-center justify-center gap-1.5 ${
                       leakCount > 0
-                        ? 'bg-[#E06C75]/15 border-[#E06C75]/40 text-[#E06C75] hover:bg-[#E06C75]/25'
-                        : 'bg-white/5 border-white/10 text-slate-500 hover:bg-[#6366F1]/15 hover:border-[#818CF8]/40 hover:text-[#EEF2FF]'
+                        ? 'bg-[#E06C75]/20 border-[#E06C75]/50 text-white shadow-[0_0_12px_rgba(224,108,117,0.15)] hover:bg-[#E06C75]/40 hover:border-[#E06C75]/80 hover:text-white hover:shadow-[0_0_16px_rgba(224,108,117,0.28)]'
+                        : 'bg-white/5 border-white/10 text-slate-500 hover:bg-white/10 hover:text-slate-300'
                     }`}
                   >
                     {userTier !== 'pro' && !state.isPro ? (
                       <Lock className="w-3.5 h-3.5" />
                     ) : (
-                      <Play className="w-3.5 h-3.5 fill-current" />
+                      <Flame className="w-3.5 h-3.5 text-[#E06C75]" />
                     )}
                     <span>Train Leaks</span>
                   </button>
@@ -5666,16 +5670,16 @@ export default function App() {
                         e.stopPropagation();
                         startLeakTraining(leaksFolderFilter, leaksScenarioFilter, pos, `${pos} Leaks`);
                       }}
-                      className={`w-full py-1 rounded-md text-[11px] font-bold border transition-colors flex items-center justify-center gap-1 ${
+                      className={`w-full py-1 rounded-md text-[11px] font-semibold border transition-all flex items-center justify-center gap-1 ${
                         leakCount > 0
-                          ? 'bg-[#E06C75]/15 border-[#E06C75]/40 text-[#E06C75] hover:bg-[#E06C75]/25'
-                          : 'bg-white/5 border-white/10 text-slate-500 hover:bg-[#6366F1]/15 hover:border-[#818CF8]/40 hover:text-[#EEF2FF]'
+                          ? 'bg-[#E06C75]/20 border-[#E06C75]/50 text-white shadow-[0_0_12px_rgba(224,108,117,0.15)] hover:bg-[#E06C75]/40 hover:border-[#E06C75]/80 hover:text-white hover:shadow-[0_0_16px_rgba(224,108,117,0.28)]'
+                          : 'bg-white/5 border-white/10 text-slate-500 hover:bg-white/10 hover:text-slate-300'
                       }`}
                     >
                       {userTier !== 'pro' && !state.isPro ? (
                         <Lock className="w-3 h-3" />
                       ) : (
-                        <Play className="w-3 h-3 fill-current" />
+                        <Flame className="w-3 h-3 text-[#E06C75]" />
                       )}
                       <span>Train Leaks</span>
                     </button>
@@ -5726,10 +5730,10 @@ export default function App() {
                     'All Matching Leaks'
                   )
                 }
-                className={`px-4 py-2 rounded-lg font-bold text-xs shadow-sm transition-colors flex items-center gap-1.5 ${
+                className={`px-4 py-2 rounded-lg font-semibold text-xs border transition-all flex items-center gap-1.5 ${
                   filteredLeaks.length > 0
-                    ? 'bg-[#4F46E5] hover:bg-[#6366F1] text-white'
-                    : 'bg-[#6366F1]/15 border border-[#818CF8]/40 text-[#EEF2FF] hover:bg-[#6366F1]/25'
+                    ? 'bg-[#E06C75]/20 border-[#E06C75]/50 text-white shadow-[0_0_12px_rgba(224,108,117,0.15)] hover:bg-[#E06C75]/40 hover:border-[#E06C75]/80 hover:text-white hover:shadow-[0_0_16px_rgba(224,108,117,0.28)]'
+                    : 'bg-white/5 border-white/10 text-slate-500 hover:bg-white/10 hover:text-slate-300'
                 }`}
               >
                 {userTier !== 'pro' && !state.isPro ? (
@@ -5737,11 +5741,13 @@ export default function App() {
                 ) : (
                   <Flame
                     className={`w-3.5 h-3.5 ${
-                      filteredLeaks.length > 0 ? 'text-[#E06C75]' : 'text-[#818CF8]'
+                      filteredLeaks.length > 0 ? 'text-[#E06C75]' : 'text-slate-500'
                     }`}
                   />
                 )}
-                <span>Train Leaks ({filteredLeaks.length})</span>
+                <span>
+                  Train All Leaks ({filteredLeaks.length})
+                </span>
               </button>
             </div>
 
