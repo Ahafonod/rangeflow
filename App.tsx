@@ -353,6 +353,8 @@ export interface ChartData {
   heroPos: string;
   villainPos: string;
   villainSize: string;
+  villainBetSize?: number;
+  facingBetSize?: number;
   strategyMode: StrategyMode;
   actions: ChartAction[];
   rawHands: { [handKey: string]: { [actionId: string]: number } };
@@ -649,7 +651,8 @@ export interface TableFrame {
 export function buildPreflopFrames(
   situation: string,
   heroPos: string,
-  villainPos: string
+  villainPos: string,
+  activeChart?: ChartData | null
 ): TableFrame[] {
   const hIdx = Math.max(0, POS_ORDER.indexOf(heroPos as any));
   const vIdx = POS_ORDER.indexOf(villainPos as any);
@@ -657,6 +660,10 @@ export function buildPreflopFrames(
   const isRFI = situation.toLowerCase().includes('rfi') || situation.toLowerCase().includes('first in');
   const isVsOpen = situation.toLowerCase().includes('open') && !isRFI;
   const isVs3Bet = situation.toLowerCase().includes('3-bet') || situation.toLowerCase().includes('3bet');
+
+  const stackDepth = activeChart?.stackDepth || 100;
+  const customVillainBet = parseFloat(String(activeChart?.villainBetSize ?? activeChart?.facingBetSize ?? ''));
+  const validVillainBet = !isNaN(customVillainBet) && customVillainBet > 0 ? customVillainBet : null;
 
   let deadBlinds = 0;
 
@@ -674,7 +681,7 @@ export function buildPreflopFrames(
       isVillain,
       status: initialBadge,
       bet: initialBlind,
-      stack: Number((100 - initialBlind).toFixed(1)),
+      stack: Number((stackDepth - initialBlind).toFixed(1)),
       hasCards: true,
       dimmed: false,
       isActingNow: false
@@ -717,7 +724,7 @@ export function buildPreflopFrames(
   const recordBetOrRaise = (seatIdx: number, amountBB: number, badgeText: string) => {
     const s = workingSeats[seatIdx];
     s.bet = amountBB;
-    s.stack = Number((100 - amountBB).toFixed(1));
+    s.stack = Number((stackDepth - amountBB).toFixed(1));
     s.status = badgeText;
     s.hasCards = true;
     s.dimmed = false;
@@ -748,8 +755,8 @@ export function buildPreflopFrames(
     for (let i = 0; i < safeVIdx; i++) {
       recordFold(i);
     }
-    // 2. At vIdx (Villain): Villain Opens to 2.5 BB (3.0 BB if SB)
-    const openSize = POS_ORDER[safeVIdx] === 'SB' ? 3.0 : 2.5;
+    // 2. At vIdx (Villain): Villain Opens to validVillainBet or 2.5 BB (3.0 BB if SB)
+    const openSize = validVillainBet ?? (POS_ORDER[safeVIdx] === 'SB' ? 3.0 : 2.5);
     recordBetOrRaise(safeVIdx, openSize, `OPEN ${openSize} BB`);
     // 3. Clockwise from vIdx + 1 to hIdx - 1: Each player between Villain and Hero Folds one by one
     for (let i = safeVIdx + 1; i < hIdx; i++) {
@@ -774,9 +781,9 @@ export function buildPreflopFrames(
     for (let i = hIdx + 1; i < safeVIdx; i++) {
       recordFold(i);
     }
-    // 4. At vIdx (Villain): Villain 3-Bets to 7.5 BB (10.0 BB if SB/BB)
+    // 4. At vIdx (Villain): Villain 3-Bets to validVillainBet or 7.5 BB (10.0 BB if SB/BB)
     const vPos = POS_ORDER[safeVIdx];
-    const villain3BetSize = vPos === 'SB' || vPos === 'BB' ? 10.0 : 7.5;
+    const villain3BetSize = validVillainBet ?? (vPos === 'SB' || vPos === 'BB' ? 10.0 : 7.5);
     recordBetOrRaise(safeVIdx, villain3BetSize, `3-BET ${villain3BetSize} BB`);
     // 5. Clockwise from vIdx + 1 to BB (5): Every remaining player after Villain Folds one by one
     for (let i = safeVIdx + 1; i < POS_ORDER.length; i++) {
@@ -808,8 +815,9 @@ export function buildPreflopFrames(
   for (let i = hIdx + 1; i < POS_ORDER.length; i++) {
     recordFold(i);
   }
-  // 6. Action wraps back around to vIdx (Villain): Villain 4-Bets to 20.0 BB
-  recordBetOrRaise(safeVIdx, 20.0, '4-BET 20 BB');
+  // 6. Action wraps back around to vIdx (Villain): Villain 4-Bets to validVillainBet or 20.0 BB
+  const villain4BetSize = validVillainBet ?? 20.0;
+  recordBetOrRaise(safeVIdx, villain4BetSize, `4-BET ${villain4BetSize} BB`);
   // 7. Action returns to hIdx (Hero): Playback finishes, Hero's seat highlights with YOUR TURN while keeping Hero's 7.5 BB 3-bet chip
   recordHeroTurnReady('YOUR TURN');
   return frames;
@@ -819,7 +827,8 @@ export function applyHeroDecisionToFrame(
   frame: TableFrame,
   situation: string,
   heroPos: string,
-  heroFinalAction?: { label: string; betSize?: number } | null
+  heroFinalAction?: { label: string; betSize?: number } | null,
+  activeChart?: ChartData | null
 ): TableFrame {
   if (!heroFinalAction) return frame;
   const hIdx = POS_ORDER.indexOf(heroPos as any);
@@ -829,12 +838,16 @@ export function applyHeroDecisionToFrame(
   const isVsOpen = situation.toLowerCase().includes('open') && !isRFI;
   const isVs3Bet = situation.toLowerCase().includes('3-bet') || situation.toLowerCase().includes('3bet');
 
+  const stackDepth = activeChart?.stackDepth || 100;
+  const customVillainBet = parseFloat(String(activeChart?.villainBetSize ?? activeChart?.facingBetSize ?? ''));
+  const validVillainBet = !isNaN(customVillainBet) && customVillainBet > 0 ? customVillainBet : null;
+
   const nextSeats = frame.seats.map(s => ({ ...s, isActingNow: false }));
   const heroSeat = nextSeats[hIdx];
   let nextDeadBlinds = frame.deadBlinds;
 
   const actUpper = heroFinalAction.label.toUpperCase();
-  const maxVillainBet = Math.max(...nextSeats.map(s => s.bet));
+  const maxVillainBet = validVillainBet ?? Math.max(...nextSeats.map(s => s.bet));
 
   if (actUpper.includes('FOLD')) {
     nextDeadBlinds = Number((nextDeadBlinds + heroSeat.bet).toFixed(1));
@@ -843,7 +856,7 @@ export function applyHeroDecisionToFrame(
     heroSeat.dimmed = true;
   } else if (actUpper.includes('CALL')) {
     heroSeat.bet = maxVillainBet;
-    heroSeat.stack = Number((100 - maxVillainBet).toFixed(1));
+    heroSeat.stack = Number((stackDepth - maxVillainBet).toFixed(1));
     heroSeat.status = `CALL ${maxVillainBet} BB`;
   } else {
     const raiseTo = isRFI
@@ -856,9 +869,9 @@ export function applyHeroDecisionToFrame(
         : 7.5
       : isVs3Bet
       ? 20.0
-      : 100.0;
+      : stackDepth;
     heroSeat.bet = raiseTo;
-    heroSeat.stack = Number((100 - raiseTo).toFixed(1));
+    heroSeat.stack = Number((stackDepth - raiseTo).toFixed(1));
     heroSeat.status = `${actUpper} ${raiseTo} BB`;
   }
 
@@ -1927,7 +1940,66 @@ export default function App() {
   const [newStackVal, setNewStackVal] = useState<string>('50');
 
   const [editingVillainSize, setEditingVillainSize] = useState<boolean>(false);
-  const [villainSizeInput, setVillainSizeInput] = useState<string>(currentChart.villainSize);
+  const [villainSizeInput, setVillainSizeInput] = useState<string>(
+    String(currentChart.villainBetSize ?? currentChart.facingBetSize ?? currentChart.villainSize ?? '')
+  );
+  const stateChartsRef = useRef(state.charts);
+  stateChartsRef.current = state.charts;
+
+  useEffect(() => {
+    const storedVal =
+      currentChart.villainBetSize !== undefined
+        ? `${currentChart.villainBetSize}bb`
+        : currentChart.facingBetSize !== undefined
+        ? `${currentChart.facingBetSize}bb`
+        : currentChart.villainSize;
+    setVillainSizeInput(storedVal);
+  }, [currentSpotId, currentChart.villainBetSize, currentChart.facingBetSize, currentChart.villainSize]);
+
+  const saveVillainBetSize = useCallback(
+    (rawVal: string) => {
+      const parsed = parseFloat(String(rawVal).replace(/[^0-9.]/g, ''));
+      if (isNaN(parsed) || parsed <= 0) {
+        const storedVal =
+          currentChart.villainBetSize !== undefined
+            ? `${currentChart.villainBetSize}bb`
+            : currentChart.facingBetSize !== undefined
+            ? `${currentChart.facingBetSize}bb`
+            : currentChart.villainSize;
+        setVillainSizeInput(storedVal);
+        return;
+      }
+      const formatted = `${parsed}bb`;
+      setVillainSizeInput(formatted);
+      setState(prev => {
+        const base =
+          prev.charts[currentSpotId] ||
+          createDefaultChart(
+            prev.activeFolderId,
+            prev.activeTableSize,
+            prev.activeStackDepth,
+            prev.activeScenario,
+            validPos.heroPos,
+            validPos.villainPos
+          );
+        const nextCharts = {
+          ...prev.charts,
+          [currentSpotId]: {
+            ...base,
+            villainSize: formatted,
+            villainBetSize: parsed,
+            facingBetSize: parsed
+          }
+        };
+        stateChartsRef.current = nextCharts;
+        return {
+          ...prev,
+          charts: nextCharts
+        };
+      });
+    },
+    [currentChart, currentSpotId, validPos.heroPos, validPos.villainPos]
+  );
 
   const [showAddActionModal, setShowAddActionModal] = useState<boolean>(false);
   const [editingActionId, setEditingActionId] = useState<string | null>(null);
@@ -1982,11 +2054,12 @@ export default function App() {
           );
         const updatedChart = updater(base);
         const nextCharts = { ...prev.charts };
-        if (isChartPopulated(updatedChart)) {
+        if (isChartPopulated(updatedChart) || updatedChart.villainBetSize !== undefined) {
           nextCharts[spotId] = updatedChart;
         } else {
           delete nextCharts[spotId];
         }
+        stateChartsRef.current = nextCharts;
         const nextLeaks = { ...prev.leaks };
         for (const hk of editedHandKeys) {
           delete nextLeaks[`${spotId}__${hk}`];
@@ -2392,19 +2465,20 @@ export default function App() {
           picked = activeLeaks[0];
         }
 
-        chosenChart = state.charts[picked.spotId];
+        chosenChart = stateChartsRef.current[picked.spotId] || state.charts[picked.spotId];
         chosenHandKey = picked.handKey;
         chosenLeakKey = picked.leakKey;
         lastDealtLeakKeyRef.current = picked.leakKey;
       } else {
         // Normal Spot Training Mode
-        const activeSpots = (overrideSpots ?? selectedTrainerSpots).filter(id => isChartPopulated(state.charts[id]));
+        const chartsMap = stateChartsRef.current;
+        const activeSpots = (overrideSpots ?? selectedTrainerSpots).filter(id => isChartPopulated(chartsMap[id]));
         if (activeSpots.length === 0) {
           setTrainerPhase('IDLE');
           return;
         }
         const pickedSpotId = activeSpots[Math.floor(Math.random() * activeSpots.length)];
-        chosenChart = state.charts[pickedSpotId];
+        chosenChart = chartsMap[pickedSpotId];
         const pool = getEffectiveTrainingHands(chosenChart);
         const nonRepeatPool = pool.length > 1 ? pool.filter(h => h !== dealtHandKey) : pool;
         const finalPool = nonRepeatPool.length > 0 ? nonRepeatPool : ALL_169_HANDS;
@@ -2423,7 +2497,8 @@ export default function App() {
       const handFrames = buildPreflopFrames(
         chosenChart.scenarioType,
         chosenChart.heroPos,
-        chosenChart.villainPos
+        chosenChart.villainPos,
+        chosenChart
       );
 
       setActiveTrainedChart(chosenChart);
@@ -2455,6 +2530,22 @@ export default function App() {
       triggerToast
     ]
   );
+
+  // Keep activeTrainedChart and its preflop frames synced when chart settings (e.g. villainBetSize) change
+  useEffect(() => {
+    if (!activeTrainedChart) return;
+    const latest = state.charts[activeTrainedChart.spotId];
+    if (latest && latest !== activeTrainedChart) {
+      setActiveTrainedChart(latest);
+      const updatedFrames = buildPreflopFrames(
+        latest.scenarioType,
+        latest.heroPos,
+        latest.villainPos,
+        latest
+      );
+      setFrames(updatedFrames);
+    }
+  }, [state.charts, activeTrainedChart]);
 
   // Step-by-Step Preflop Action Playback Timer (180ms for folds, 260ms for raises)
   useEffect(() => {
@@ -3824,53 +3915,26 @@ export default function App() {
                 {state.activeScenario !== 'Open Raise (RFI)' && (
                   <div className="flex items-center gap-1.5 bg-[#181D29] border border-[#232938] rounded-lg px-2.5 py-1">
                     <span className="text-[11px] text-slate-400">Villain Size:</span>
-                    {editingVillainSize ? (
-                      <div className="flex items-center gap-1">
-                        <input
-                          type="text"
-                          value={villainSizeInput}
-                          onChange={e => setVillainSizeInput(e.target.value)}
-                          onKeyDown={e => {
-                            if (e.key === 'Enter') {
-                              updateChart(currentSpotId, c => ({
-                                ...c,
-                                villainSize: villainSizeInput.trim() || c.villainSize
-                              }));
-                              setEditingVillainSize(false);
-                            } else if (e.key === 'Escape') {
-                              setEditingVillainSize(false);
-                            }
-                          }}
-                          className="w-14 bg-[#0B0D12] px-1.5 py-0.5 rounded text-xs text-white border border-[#E06C75] focus:outline-none"
-                          autoFocus
-                        />
-                        <button
-                          type="button"
-                          onClick={() => {
-                            updateChart(currentSpotId, c => ({
-                              ...c,
-                              villainSize: villainSizeInput.trim() || c.villainSize
-                            }));
-                            setEditingVillainSize(false);
-                          }}
-                          className="text-[#68B388]"
-                        >
-                          <Check className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    ) : (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setVillainSizeInput(currentChart.villainSize);
-                          setEditingVillainSize(true);
-                        }}
-                        className="text-xs font-bold text-[#E5C07B] hover:underline flex items-center gap-1"
-                      >
-                        <span>{currentChart.villainSize}</span>
-                        <Edit3 className="w-3 h-3 opacity-70" />
-                      </button>
-                    )}
+                    <input
+                      type="text"
+                      value={villainSizeInput}
+                      onChange={e => setVillainSizeInput(e.target.value)}
+                      onKeyDown={e => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          saveVillainBetSize(e.currentTarget.value);
+                          e.currentTarget.blur();
+                        } else if (e.key === 'Escape') {
+                          setEditingVillainSize(false);
+                          e.currentTarget.blur();
+                        }
+                      }}
+                      onBlur={e => {
+                        saveVillainBetSize(e.currentTarget.value);
+                        setEditingVillainSize(false);
+                      }}
+                      className="w-16 bg-[#0B0D12] px-1.5 py-0.5 rounded text-xs font-bold text-[#E5C07B] border border-[#232938] focus:border-[#E06C75] focus:outline-none text-center"
+                    />
                   </div>
                 )}
 
@@ -4058,8 +4122,8 @@ export default function App() {
                       const isVillain = seat === validPos.villainPos;
                       const actionLabel =
                         state.activeScenario === 'Facing Open'
-                          ? `Open ${seat === 'SB' ? '3.0bb' : '2.5bb'}`
-                          : `4-Bet 20bb`;
+                          ? 'Open'
+                          : '4-Bet';
 
                       return (
                         <button
@@ -4114,7 +4178,7 @@ export default function App() {
                       // Seat is AFTER Hero (idx > heroIdx)
                       if (state.activeScenario === 'Facing 3-Bet') {
                         const isVillain = seat === validPos.villainPos;
-                        const label = `3-Bet ${seat === 'SB' || seat === 'BB' ? '10bb' : '7.5bb'}`;
+                        const label = '3-Bet';
                         return (
                           <button
                             key={seat}
@@ -4825,7 +4889,8 @@ export default function App() {
                       : buildPreflopFrames(
                           activeTrainedChart.scenarioType,
                           activeTrainedChart.heroPos,
-                          activeTrainedChart.villainPos
+                          activeTrainedChart.villainPos,
+                          activeTrainedChart
                         );
                   const clampedIdx = Math.min(frameIdx, activeFrames.length - 1);
                   const baseFrame = activeFrames[clampedIdx] || activeFrames[activeFrames.length - 1];
@@ -4835,7 +4900,8 @@ export default function App() {
                           activeFrames[activeFrames.length - 1],
                           activeTrainedChart.scenarioType,
                           activeTrainedChart.heroPos,
-                          heroFinalAction
+                          heroFinalAction,
+                          activeTrainedChart
                         )
                       : baseFrame;
 
