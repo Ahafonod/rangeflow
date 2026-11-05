@@ -4145,7 +4145,7 @@ export default function App() {
                         return (
                           <div
                             key={seat}
-                            className="h-7 rounded-md bg-[#6366F1]/15 border border-[#818CF8]/60/40 text-[#818CF8] text-[11px] font-bold flex items-center justify-center"
+                            className="h-7 rounded-md bg-[#6366F1]/15 border border-[#818CF8]/40 text-[#818CF8] text-[11px] font-bold flex items-center justify-center"
                           >
                             HERO
                           </div>
@@ -4216,7 +4216,7 @@ export default function App() {
                         return (
                           <div
                             key={seat}
-                            className="h-7 rounded-md bg-[#6366F1]/15 border border-[#818CF8]/60/40 text-[#818CF8] text-[11px] font-bold flex items-center justify-center"
+                            className="h-7 rounded-md bg-[#6366F1]/15 border border-[#818CF8]/40 text-[#818CF8] text-[11px] font-bold flex items-center justify-center"
                           >
                             HERO
                           </div>
@@ -4281,9 +4281,9 @@ export default function App() {
           </div>
 
           {/* MAIN SPLIT WORKSPACE (LEFT: 13x13 KEYCAP MATRIX | RIGHT: ACTIONS PALETTE & 12 BUCKETS) */}
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-3.5 items-start">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 items-stretch">
             {/* LEFT COLUMN: 13x13 Tactile Keycap Matrix Card */}
-            <div className="lg:col-span-7 bg-[#12161F] border border-[#232938] rounded-xl p-4 flex flex-col gap-3">
+            <div className="lg:col-span-6 bg-[#12161F] border border-[#232938] rounded-xl p-3 flex flex-col justify-between gap-2 self-stretch h-full">
               {/* Card Header */}
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div className="flex items-center gap-2.5">
@@ -4337,7 +4337,7 @@ export default function App() {
               </div>
 
               {/* Sub-header */}
-              <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-slate-400 border-b border-[#232938] pb-2">
+              <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] text-slate-400 border-b border-[#232938] pb-1.5">
                 <span>
                   {currentChart.strategyMode === 'pure'
                     ? 'Auto-Pure active: drag one hand onto another to swap pure assignments, or click to toggle.'
@@ -4350,8 +4350,12 @@ export default function App() {
 
               {/* 13x13 Flat Cut-Corner Cell Grid */}
               <div
-                className="grid grid-cols-13 gap-1 select-none"
-                style={{ gridTemplateColumns: 'repeat(13, minmax(0, 1fr))' }}
+                className="flex-1 w-full h-full grid grid-cols-13 grid-rows-13 gap-1 select-none"
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(13, minmax(0, 1fr))',
+                  gridTemplateRows: 'repeat(13, minmax(0, 1fr))'
+                }}
                 onMouseLeave={() => setHoveredHandKey(null)}
               >
                 {ALL_169_HANDS.map(handKey => {
@@ -4408,7 +4412,7 @@ export default function App() {
                       onMouseEnter={() => handleCellMouseEnter(handKey)}
                       onMouseUp={() => handleCellMouseUp(handKey)}
                       style={bgStyle}
-                      className={`relative aspect-square rounded-[7px] overflow-hidden border border-[#262C3A] p-1 flex flex-col justify-between transition-opacity duration-75 select-none cursor-pointer ${
+                      className={`relative w-full h-full min-h-[28px] rounded-[6px] overflow-hidden border border-[#262C3A] p-1 flex flex-col justify-between transition-opacity duration-75 select-none cursor-pointer ${
                         isBucketSpotlight
                           ? belongsToHoveredBucket
                             ? 'opacity-100 scale-[1.03] z-10 ring-2 ring-white/80 shadow-lg'
@@ -4419,13 +4423,13 @@ export default function App() {
                       {/* Top row: Hand label top-left, combo number top-right */}
                       <div className="flex items-start justify-between leading-none w-full">
                         <span
-                          className={`text-[10px] sm:text-[11px] font-bold tracking-tight drop-shadow-[0_1px_2px_rgba(0,0,0,0.85)] ${
+                          className={`text-[10px] sm:text-[11px] leading-none font-bold tracking-tight drop-shadow-[0_1px_2px_rgba(0,0,0,0.85)] ${
                             cumulativePct > 0 ? 'text-white' : 'text-slate-300'
                           }`}
                         >
                           {handKey}
                         </span>
-                        <span className="text-[8px] font-semibold text-white/60 drop-shadow-[0_1px_1px_rgba(0,0,0,0.8)]">
+                        <span className="text-[8px] leading-none font-semibold text-white/60 drop-shadow-[0_1px_1px_rgba(0,0,0,0.8)]">
                           {combos}
                         </span>
                       </div>
@@ -4433,7 +4437,7 @@ export default function App() {
                       {/* Bottom row: Partial weight percentage in bottom-right */}
                       <div className="flex items-end justify-end leading-none w-full">
                         {primaryPartialW !== null && (
-                          <span className="text-[8px] sm:text-[9px] font-extrabold text-white bg-black/45 px-1 rounded-[3px]">
+                          <span className="text-[8px] sm:text-[9px] leading-none font-extrabold text-white bg-black/45 px-1 rounded-[3px]">
                             {Math.round(primaryPartialW)}
                           </span>
                         )}
@@ -4444,7 +4448,7 @@ export default function App() {
               </div>
 
               {/* Hover Hand Breakdown Bar */}
-              <div className="h-8 bg-[#181D29] border border-[#232938] rounded-lg px-3 flex items-center justify-between text-xs">
+              <div className="h-7 bg-[#181D29] border border-[#232938] rounded-lg px-2.5 flex items-center justify-between text-[11px] shrink-0">
                 {hoveredHandKey ? (
                   <>
                     <div className="flex items-center gap-2">
@@ -4490,9 +4494,9 @@ export default function App() {
             </div>
 
             {/* RIGHT COLUMN: ACTIONS PALETTE & 12 STRATEGIC BUCKETS */}
-            <div className="lg:col-span-5 flex flex-col gap-3.5">
+            <div className="lg:col-span-6 flex flex-col justify-between gap-3 self-stretch h-full">
               {/* RIGHT COLUMN TOP CARD: ACTIONS PALETTE */}
-              <div className="bg-[#12161F] border border-[#232938] rounded-xl p-4 flex flex-col gap-3">
+              <div className="bg-[#12161F] border border-[#232938] rounded-xl p-3 flex flex-col gap-2.5">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-bold uppercase tracking-wider text-slate-200">
                     ACTIONS PALETTE
@@ -4682,7 +4686,7 @@ export default function App() {
               </div>
 
               {/* RIGHT COLUMN BOTTOM CARD: STRATEGIC BUCKETS (12 FAMILIES) WITH HOVER SPOTLIGHT */}
-              <div className="bg-[#12161F] border border-[#232938] rounded-xl p-4 flex flex-col gap-3">
+              <div className="bg-[#12161F] border border-[#232938] rounded-xl p-3 flex-1 flex flex-col justify-between gap-2.5 h-full">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-bold uppercase tracking-wider text-slate-200">
                     STRATEGIC BUCKETS (12 FAMILIES)
@@ -4712,7 +4716,7 @@ export default function App() {
                   </button>
                 </div>
 
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-2 gap-2 flex-1 auto-rows-fr">
                   {STRATEGIC_BUCKETS.map(bucket => {
                     const paintedCount = bucket.hands.filter(h => {
                       const weights = displayedGrid[h];
@@ -4751,7 +4755,7 @@ export default function App() {
                           <span
                             className={`px-1.5 py-0.5 rounded text-[10px] font-bold shrink-0 ${
                               paintedCount > 0
-                                ? 'bg-[#6366F1]/20 text-[#818CF8] border border-[#818CF8]/60/40'
+                                ? 'bg-[#6366F1]/20 text-[#818CF8] border border-[#818CF8]/40'
                                 : 'bg-[#0B0D12] text-slate-400 border border-[#232938]'
                             }`}
                           >
@@ -5096,7 +5100,7 @@ export default function App() {
                                         : seatObj.isVillain && seatObj.bet > 1
                                         ? 'bg-[#E5C07B]/20 text-[#E5C07B] border border-[#E5C07B]/40'
                                         : isHeroSeat && seatObj.bet > 1
-                                        ? 'bg-[#6366F1]/20 text-[#818CF8] border border-[#818CF8]/60/40'
+                                        ? 'bg-[#6366F1]/20 text-[#818CF8] border border-[#818CF8]/40'
                                         : 'bg-[#181D29] text-slate-300 border border-[#232938]'
                                     }`}
                                   >
@@ -6384,7 +6388,7 @@ export default function App() {
             </div>
 
             {proModalReason && (
-              <div className="p-3 rounded-lg bg-[#6366F1]/15 border border-[#818CF8]/60/40 text-xs text-[#818CF8] font-medium">
+              <div className="p-3 rounded-lg bg-[#6366F1]/15 border border-[#818CF8]/40 text-xs text-[#818CF8] font-medium">
                 {proModalReason}
               </div>
             )}
