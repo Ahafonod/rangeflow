@@ -648,14 +648,69 @@ export interface TableFrame {
   stepDelayMs: number;
 }
 
+export function resolveActivePositions(
+  activeChart?: ChartData | null,
+  customPositions?: string[],
+  activeTableSize?: number,
+  heroPos?: string,
+  villainPos?: string
+): string[] {
+  const chartTableSize = activeChart?.tableSize || activeTableSize || 6;
+  const baseForChartSize = getSeatsForTableSize(chartTableSize);
+
+  let base: string[];
+  if (
+    Array.isArray(customPositions) &&
+    customPositions.length >= 2 &&
+    (chartTableSize === (activeTableSize || 6) || customPositions.length === chartTableSize)
+  ) {
+    const isDefault6Max =
+      customPositions.length === 6 &&
+      customPositions.every((p, i) => p === ['UTG', 'HJ', 'CO', 'BTN', 'SB', 'BB'][i]);
+    if (chartTableSize !== 6 && isDefault6Max) {
+      base = [...baseForChartSize];
+    } else {
+      base = [...customPositions];
+    }
+  } else {
+    base = [...baseForChartSize];
+  }
+
+  const canonicalOrder = ['UTG', 'UTG+1', 'UTG+2', 'MP', 'LJ', 'HJ', 'CO', 'BTN', 'SB', 'BB'];
+  const needed = [heroPos || activeChart?.heroPos, villainPos || activeChart?.villainPos].filter(
+    (p): p is string => Boolean(p && p !== 'none' && !base.includes(p))
+  );
+  if (needed.length > 0) {
+    base = [...base, ...needed].sort((a, b) => {
+      const ia = canonicalOrder.indexOf(a);
+      const ib = canonicalOrder.indexOf(b);
+      if (ia !== -1 && ib !== -1) return ia - ib;
+      if (ia !== -1) return -1;
+      if (ib !== -1) return 1;
+      return 0;
+    });
+  }
+  return base;
+}
+
 export function buildPreflopFrames(
   situation: string,
   heroPos: string,
   villainPos: string,
-  activeChart?: ChartData | null
+  activeChart?: ChartData | null,
+  customPositions?: string[],
+  activeTableSize?: number
 ): TableFrame[] {
-  const hIdx = Math.max(0, POS_ORDER.indexOf(heroPos as any));
-  const vIdx = POS_ORDER.indexOf(villainPos as any);
+  const activePositions = resolveActivePositions(
+    activeChart,
+    customPositions,
+    activeTableSize,
+    heroPos,
+    villainPos
+  );
+  const numSeats = activePositions.length;
+  const hIdx = Math.max(0, activePositions.indexOf(heroPos));
+  const vIdx = activePositions.indexOf(villainPos);
 
   const isRFI = situation.toLowerCase().includes('rfi') || situation.toLowerCase().includes('first in');
   const isVsOpen = situation.toLowerCase().includes('open') && !isRFI;
@@ -669,13 +724,15 @@ export function buildPreflopFrames(
 
   let deadBlinds = 0;
 
-  // Frame 0 (Blinds Posted): All 6 seats have hole cards, SB has 0.5 BB, BB has 1.0 BB
-  const workingSeats: TableSeatState[] = POS_ORDER.map((pos, idx) => {
+  // Frame 0 (Blinds Posted): All N active seats have hole cards, SB has 0.5 BB, BB has 1.0 BB
+  const workingSeats: TableSeatState[] = activePositions.map((pos, idx) => {
     const isHero = idx === hIdx;
     const isVillain = !isRFI && idx === vIdx;
-    const initialBlind = pos === 'SB' ? 0.5 : pos === 'BB' ? 1.0 : 0;
+    const isSB = pos === 'SB' || (numSeats === 2 && pos === 'BTN');
+    const isBB = pos === 'BB';
+    const initialBlind = isSB ? 0.5 : isBB ? 1.0 : 0;
     const initialBadge =
-      pos === 'SB' ? 'SB 0.5 BB' : pos === 'BB' ? 'BB 1.0 BB' : 'WAIT';
+      pos === 'SB' ? 'SB 0.5 BB' : isSB ? 'SB 0.5 BB' : isBB ? 'BB 1.0 BB' : 'WAIT';
 
     return {
       pos,
@@ -741,7 +798,7 @@ export function buildPreflopFrames(
 
   if (isRFI) {
     // Case A: RFI (Hero is at hIdx)
-    // 1. Clockwise from UTG (0) to hIdx - 1: Each player acts in turn and Folds
+    // 1. Clockwise from first seat (0) to hIdx - 1: Each player acts in turn and Folds
     for (let i = 0; i < hIdx; i++) {
       recordFold(i);
     }
@@ -753,7 +810,7 @@ export function buildPreflopFrames(
   if (isVsOpen) {
     // Case B: vs Open (Villain at vIdx < Hero at hIdx)
     const safeVIdx = vIdx >= 0 && vIdx < hIdx ? vIdx : 0;
-    // 1. Clockwise from UTG (0) to vIdx - 1: Each player Folds one by one
+    // 1. Clockwise from first seat (0) to vIdx - 1: Each player Folds one by one
     for (let i = 0; i < safeVIdx; i++) {
       recordFold(i);
     }
@@ -771,8 +828,8 @@ export function buildPreflopFrames(
 
   if (isVs3Bet) {
     // Case C: vs 3-Bet (Hero at hIdx < Villain at vIdx)
-    const safeVIdx = vIdx > hIdx ? vIdx : Math.min(POS_ORDER.length - 1, hIdx + 1);
-    // 1. Clockwise from UTG (0) to hIdx - 1: Each player before Hero Folds one by one
+    const safeVIdx = vIdx > hIdx ? vIdx : Math.min(numSeats - 1, hIdx + 1);
+    // 1. Clockwise from first seat (0) to hIdx - 1: Each player before Hero Folds one by one
     for (let i = 0; i < hIdx; i++) {
       recordFold(i);
     }
@@ -786,8 +843,8 @@ export function buildPreflopFrames(
     // 4. At vIdx (Villain): Villain 3-Bets to validVillainBet or 7.5 BB
     const villain3BetSize = validVillainBet ?? 7.5;
     recordBetOrRaise(safeVIdx, villain3BetSize, `3-BET ${villain3BetSize} BB`);
-    // 5. Clockwise from vIdx + 1 to BB (5): Every remaining player after Villain Folds one by one
-    for (let i = safeVIdx + 1; i < POS_ORDER.length; i++) {
+    // 5. Clockwise from vIdx + 1 to BB (numSeats - 1): Every remaining player after Villain Folds one by one
+    for (let i = safeVIdx + 1; i < numSeats; i++) {
       recordFold(i);
     }
     // 6. Action returns to hIdx (Hero): Playback finishes, Hero's seat shows YOUR TURN (vs 3-BET)
@@ -795,9 +852,9 @@ export function buildPreflopFrames(
     return frames;
   }
 
-  // Case D: vs 4-Bet (Villain at vIdx < Hero at hIdx, e.g., HJ vs UTG 4-Bet)
+  // Case D: vs 4-Bet (Villain at vIdx < Hero at hIdx)
   const safeVIdx = vIdx >= 0 && vIdx < hIdx ? vIdx : 0;
-  // 1. Clockwise from UTG (0) to vIdx - 1: Each player before Villain Folds one by one
+  // 1. Clockwise from first seat (0) to vIdx - 1: Each player before Villain Folds one by one
   for (let i = 0; i < safeVIdx; i++) {
     recordFold(i);
   }
@@ -811,8 +868,8 @@ export function buildPreflopFrames(
   // 4. At hIdx (Hero): Hero automatically 3-Bets to 7.5 BB
   const hero3BetSize = 7.5;
   recordBetOrRaise(hIdx, hero3BetSize, `3-BET ${hero3BetSize} BB`);
-  // 5. Clockwise from hIdx + 1 to BB (5): Every remaining player Folds one by one (sweeping SB 0.5 BB and BB 1.0 BB into deadBlinds)
-  for (let i = hIdx + 1; i < POS_ORDER.length; i++) {
+  // 5. Clockwise from hIdx + 1 to BB (numSeats - 1): Every remaining player Folds one by one
+  for (let i = hIdx + 1; i < numSeats; i++) {
     recordFold(i);
   }
   // 6. Action wraps back around to vIdx (Villain): Villain 4-Bets to validVillainBet or 22 BB
@@ -831,7 +888,7 @@ export function applyHeroDecisionToFrame(
   activeChart?: ChartData | null
 ): TableFrame {
   if (!heroFinalAction) return frame;
-  const hIdx = POS_ORDER.indexOf(heroPos as any);
+  const hIdx = frame.seats.findIndex(s => s.isHero || s.pos === heroPos);
   if (hIdx < 0 || hIdx >= frame.seats.length) return frame;
 
   const isRFI = situation.toLowerCase().includes('rfi') || situation.toLowerCase().includes('first in');
@@ -903,6 +960,29 @@ export function applyHeroDecisionToFrame(
   };
 }
 
+export function getSeatStatesForSpot(
+  situation: string,
+  heroPos: string,
+  villainPos: string,
+  heroFinalAction?: { label: string; betSize?: number } | null,
+  activeChart?: ChartData | null,
+  customPositions?: string[],
+  activeTableSize?: number
+): TableFrame {
+  const frames = buildPreflopFrames(
+    situation,
+    heroPos,
+    villainPos,
+    activeChart,
+    customPositions,
+    activeTableSize
+  );
+  const lastFrame = frames[frames.length - 1];
+  return heroFinalAction
+    ? applyHeroDecisionToFrame(lastFrame, situation, heroPos, heroFinalAction, activeChart)
+    : lastFrame;
+}
+
 export function getValidPositions(
   tableSize: number,
   scenario: ScenarioType,
@@ -911,8 +991,13 @@ export function getValidPositions(
   customPositions?: string[]
 ) {
   const baseSeats = getSeatsForTableSize(tableSize);
+  const isStaleDefault6Max =
+    tableSize !== 6 &&
+    Array.isArray(customPositions) &&
+    customPositions.length === 6 &&
+    customPositions.every((p, i) => p === ['UTG', 'HJ', 'CO', 'BTN', 'SB', 'BB'][i]);
   const seats =
-    tableSize === 6 && Array.isArray(customPositions) && customPositions.length >= 2
+    Array.isArray(customPositions) && customPositions.length >= 2 && !isStaleDefault6Max
       ? customPositions
       : baseSeats;
   let heroPos = seats.includes(currentHero) ? currentHero : seats[0];
@@ -2547,7 +2632,9 @@ export default function App() {
         chosenChart.scenarioType,
         chosenChart.heroPos,
         chosenChart.villainPos,
-        chosenChart
+        chosenChart,
+        state.activePositions,
+        state.activeTableSize
       );
 
       setActiveTrainedChart(chosenChart);
@@ -2570,6 +2657,8 @@ export default function App() {
       state.dailyHandsCount,
       state.leaks,
       state.charts,
+      state.activePositions,
+      state.activeTableSize,
       state.totalHandsTrained,
       isLeakTrainingMode,
       leakFilterCriteria,
@@ -2580,21 +2669,23 @@ export default function App() {
     ]
   );
 
-  // Keep activeTrainedChart and its preflop frames synced when chart settings (e.g. villainBetSize) change
+  // Keep activeTrainedChart and its preflop frames synced when chart settings (e.g. villainBetSize or positions) change
   useEffect(() => {
     if (!activeTrainedChart) return;
-    const latest = state.charts[activeTrainedChart.spotId];
-    if (latest && latest !== activeTrainedChart) {
+    const latest = state.charts[activeTrainedChart.spotId] || activeTrainedChart;
+    if (latest !== activeTrainedChart) {
       setActiveTrainedChart(latest);
-      const updatedFrames = buildPreflopFrames(
-        latest.scenarioType,
-        latest.heroPos,
-        latest.villainPos,
-        latest
-      );
-      setFrames(updatedFrames);
     }
-  }, [state.charts, activeTrainedChart]);
+    const updatedFrames = buildPreflopFrames(
+      latest.scenarioType,
+      latest.heroPos,
+      latest.villainPos,
+      latest,
+      state.activePositions,
+      state.activeTableSize
+    );
+    setFrames(updatedFrames);
+  }, [state.charts, activeTrainedChart, state.activePositions, state.activeTableSize]);
 
   // Step-by-Step Preflop Action Playback Timer (180ms for folds, 260ms for raises)
   useEffect(() => {
@@ -3026,7 +3117,8 @@ export default function App() {
       return {
         ...prev,
         playerOptions: next,
-        activeTableSize: val
+        activeTableSize: val,
+        activePositions: getSeatsForTableSize(val)
       };
     });
     setAddingPlayer(false);
@@ -3079,7 +3171,11 @@ export default function App() {
       return {
         ...prev,
         playerOptions: next,
-        activeTableSize: nextActive
+        activeTableSize: nextActive,
+        activePositions:
+          prev.activeTableSize === playerToRemove
+            ? getSeatsForTableSize(nextActive)
+            : prev.activePositions
       };
     });
   };
@@ -3827,7 +3923,7 @@ export default function App() {
                 {state.playerOptions.map(p => (
                   <div
                     key={p}
-                    onClick={() => setState(prev => ({ ...prev, activeTableSize: p }))}
+                    onClick={() => setState(prev => ({ ...prev, activeTableSize: p, activePositions: getSeatsForTableSize(p) }))}
                     className={`group px-2.5 py-1 rounded-md text-xs font-semibold transition-all cursor-pointer flex items-center gap-1 ${
                       state.activeTableSize === p
                         ? 'bg-[#6366F1]/15 border border-[#818CF8]/50 text-[#EEF2FF] font-semibold shadow-[0_0_12px_rgba(99,102,241,0.12)]'
@@ -4058,7 +4154,7 @@ export default function App() {
                         type="button"
                         title="Add or restore a position (e.g. UTG, HJ, CO, BTN, SB, BB)"
                         onClick={() => {
-                          const missing = ['UTG', 'HJ', 'CO', 'BTN', 'SB', 'BB'].find(
+                          const missing = getSeatsForTableSize(state.activeTableSize).find(
                             p => !seats.includes(p)
                           );
                           if (missing) {
@@ -4348,9 +4444,9 @@ export default function App() {
                 </span>
               </div>
 
-              {/* 13x13 Flat Cut-Corner Cell Grid */}
+              {/* 13x13 Flat Cut-Corner Cell Grid (Full-Bleed Edge-to-Edge) */}
               <div
-                className="flex-1 w-full h-full gap-1 p-2 select-none"
+                className="flex-1 w-full h-full gap-1 p-0 select-none"
                 style={{
                   display: 'grid',
                   gridTemplateColumns: 'repeat(13, minmax(0, 1fr))',
@@ -4961,7 +5057,9 @@ export default function App() {
                           activeTrainedChart.scenarioType,
                           activeTrainedChart.heroPos,
                           activeTrainedChart.villainPos,
-                          activeTrainedChart
+                          activeTrainedChart,
+                          state.activePositions,
+                          state.activeTableSize
                         );
                   const clampedIdx = Math.min(frameIdx, activeFrames.length - 1);
                   const baseFrame = activeFrames[clampedIdx] || activeFrames[activeFrames.length - 1];
@@ -4976,11 +5074,14 @@ export default function App() {
                         )
                       : baseFrame;
 
-                  const hIdx = POS_ORDER.indexOf(activeTrainedChart.heroPos as any);
-                  const safeHeroIdx = hIdx >= 0 ? hIdx : 0;
-                  // Rotate POS_ORDER clockwise so Hero is anchored at bottom center (index 0)
-                  const rotatedSeats = POS_ORDER.map(
-                    (_, i) => currentFrame.seats[(safeHeroIdx + i) % POS_ORDER.length]
+                  const seatCount = currentFrame.seats.length;
+                  const foundHeroIdx = currentFrame.seats.findIndex(
+                    s => s.isHero || s.pos === activeTrainedChart.heroPos
+                  );
+                  const safeHeroIdx = foundHeroIdx >= 0 ? foundHeroIdx : 0;
+                  // Rotate all N active seats clockwise starting from heroPos so rotatedSeats[0] is always Hero at bottom center
+                  const rotatedSeats = currentFrame.seats.map(
+                    (_, i) => currentFrame.seats[(safeHeroIdx + i) % seatCount]
                   );
 
                   return (
@@ -4995,18 +5096,16 @@ export default function App() {
                         </div>
                       </div>
 
-                      {/* Seats Arranged Clockwise Around the Table (Hero anchored at bottom center) */}
+                      {/* Seats Arranged Clockwise Around the Table (Hero anchored at bottom center: left 50%, top 88%) */}
                       {rotatedSeats.map((seatObj, idx) => {
-                        const angleDeg = 90 + (idx * 360) / rotatedSeats.length;
-                        const angleRad = (angleDeg * Math.PI) / 180;
-                        const rx = 42; // % of width
-                        const ry = 41; // % of height
-                        const leftPct = 50 + rx * Math.cos(angleRad);
-                        const topPct = 50 + ry * Math.sin(angleRad);
+                        const N = rotatedSeats.length;
+                        const angle = Math.PI / 2 + (2 * Math.PI * idx) / N;
+                        const leftPct = idx === 0 ? 50 : 50 + 42 * Math.cos(angle);
+                        const topPct = idx === 0 ? 88 : 50 + 38 * Math.sin(angle);
 
-                        const isHeroSeat = seatObj.isHero;
-                        const chipLeftPct = 50 + rx * 0.52 * Math.cos(angleRad);
-                        const chipTopPct = 50 + ry * 0.48 * Math.sin(angleRad);
+                        const isHeroSeat = seatObj.isHero || idx === 0;
+                        const chipLeftPct = 50 + 42 * 0.54 * Math.cos(angle);
+                        const chipTopPct = 50 + 38 * 0.50 * Math.sin(angle);
 
                         return (
                           <React.Fragment key={seatObj.pos}>
@@ -5879,7 +5978,13 @@ export default function App() {
                 </div>
 
                 {SCENARIOS.map(scen => {
-                  const dSeats = getSeatsForTableSize(drawerTableSize);
+                  const dSeats = resolveActivePositions(
+                    null,
+                    state.activePositions,
+                    state.activeTableSize
+                  ).length >= 2 && drawerTableSize === state.activeTableSize
+                    ? resolveActivePositions(null, state.activePositions, state.activeTableSize)
+                    : getSeatsForTableSize(drawerTableSize);
                   const savedForScen = Object.values(state.charts).filter(
                     c =>
                       c.folderId === drawerFolderId &&
