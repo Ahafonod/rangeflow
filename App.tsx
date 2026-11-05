@@ -1601,6 +1601,8 @@ export default function App() {
   const [hoveredHandKey, setHoveredHandKey] = useState<string | null>(null);
   const [hoveredBucketId, setHoveredBucketId] = useState<string | null>(null);
   const [pureDragSourceHand, setPureDragSourceHand] = useState<string | null>(null);
+  const [draggedActionId, setDraggedActionId] = useState<string | null>(null);
+  const [dragOverActionId, setDragOverActionId] = useState<string | null>(null);
 
   // Training Hands Drawer Click-and-Drag Painting Refs
   const isDraggingTrainingGrid = useRef<boolean>(false);
@@ -2711,7 +2713,10 @@ export default function App() {
           handleTrainerAction('FOLD');
         } else if (['1', '2', '3', '4', '5'].includes(e.key)) {
           const idx = parseInt(e.key, 10) - 1;
-          const act = activeTrainedChart.actions[idx];
+          const nonFoldActions = activeTrainedChart.actions.filter(
+            a => a.id !== 'fold' && !((a as any).label || a.name || '').toLowerCase().includes('fold')
+          );
+          const act = nonFoldActions[idx];
           if (act) {
             e.preventDefault();
             handleTrainerAction(act.id);
@@ -3112,6 +3117,46 @@ export default function App() {
       },
       ALL_169_HANDS
     );
+  };
+
+  const handleActionReorder = (sourceId: string, targetId: string) => {
+    const activeChart = currentChart;
+    if (!activeChart || sourceId === targetId) return;
+    const nonFoldActions = activeChart.actions.filter(
+      a => a.id !== 'fold' && !((a as any).label || a.name || '').toLowerCase().includes('fold')
+    );
+    const foldActions = activeChart.actions.filter(
+      a => a.id === 'fold' || ((a as any).label || a.name || '').toLowerCase().includes('fold')
+    );
+    const fromIdx = nonFoldActions.findIndex(a => a.id === sourceId);
+    const toIdx = nonFoldActions.findIndex(a => a.id === targetId);
+    if (fromIdx === -1 || toIdx === -1) return;
+    const reorderedNonFold = [...nonFoldActions];
+    const movedItem = reorderedNonFold.splice(fromIdx, 1)[0];
+    reorderedNonFold.splice(toIdx, 0, movedItem);
+    const nextActions = [...reorderedNonFold, ...foldActions];
+    setState(prev => {
+      const base =
+        prev.charts[currentSpotId] ||
+        createDefaultChart(
+          prev.activeFolderId,
+          prev.activeTableSize,
+          prev.activeStackDepth,
+          prev.activeScenario,
+          validPos.heroPos,
+          validPos.villainPos
+        );
+      return {
+        ...prev,
+        charts: {
+          ...prev.charts,
+          [currentSpotId]: {
+            ...base,
+            actions: nextActions
+          }
+        }
+      };
+    });
   };
 
   // ============================================================================
@@ -4346,7 +4391,9 @@ export default function App() {
 
                 {/* Full-Width Stacked Action Bars */}
                 <div className="flex flex-col gap-2">
-                  {currentChart.actions.map(action => {
+                  {currentChart.actions
+                    .filter(a => a.id !== 'fold' && !((a as any).label || a.name || '').toLowerCase().includes('fold'))
+                    .map(action => {
                     const isSelected = selectedActionId === action.id;
                     const combos = chartStats.actionCombos[action.id] || 0;
                     const pct = (combos / 1326) * 100;
@@ -4354,14 +4401,45 @@ export default function App() {
                     return (
                       <div
                         key={action.id}
+                        draggable={true}
+                        onDragStart={(e) => {
+                          setDraggedActionId(action.id);
+                          e.dataTransfer.effectAllowed = 'move';
+                        }}
+                        onDragOver={(e) => {
+                          e.preventDefault();
+                          if (draggedActionId && draggedActionId !== action.id) {
+                            setDragOverActionId(action.id);
+                          }
+                        }}
+                        onDragLeave={() => {
+                          if (dragOverActionId === action.id) setDragOverActionId(null);
+                        }}
+                        onDrop={(e) => {
+                          e.preventDefault();
+                          if (draggedActionId && draggedActionId !== action.id) {
+                            handleActionReorder(draggedActionId, action.id);
+                          }
+                          setDraggedActionId(null);
+                          setDragOverActionId(null);
+                        }}
+                        onDragEnd={() => {
+                          setDraggedActionId(null);
+                          setDragOverActionId(null);
+                        }}
                         onClick={() => setSelectedActionId(action.id)}
                         className={`group rounded-lg p-2.5 flex items-center justify-between transition-all cursor-pointer border ${
                           isSelected
                             ? 'bg-[#181D29] border-[#E06C75] shadow-sm ring-1 ring-white/15'
                             : 'bg-[#181D29]/70 border-[#232938] hover:border-slate-600'
+                        } ${draggedActionId === action.id ? 'opacity-50' : ''} ${
+                          dragOverActionId === action.id ? 'ring-2 ring-[#E06C75]' : ''
                         }`}
                       >
                         <div className="flex items-center gap-2.5">
+                          <span className="text-slate-500 hover:text-slate-300 text-xs cursor-grab active:cursor-grabbing select-none leading-none">
+                            ⋮⋮
+                          </span>
                           <span
                             className="w-4 h-4 rounded shadow-sm shrink-0 border border-white/20"
                             style={{ backgroundColor: action.color }}
@@ -4372,6 +4450,8 @@ export default function App() {
                           <input
                             type="text"
                             value={action.size}
+                            draggable={false}
+                            onMouseDown={(e) => e.stopPropagation()}
                             onClick={e => e.stopPropagation()}
                             onChange={e => {
                               const val = e.target.value;
@@ -5000,7 +5080,9 @@ export default function App() {
                     <span>Fold</span>
                   </button>
 
-                  {activeTrainedChart.actions.map((act, idx) => (
+                  {activeTrainedChart.actions
+                    .filter(a => a.id !== 'fold' && !((a as any).label || a.name || '').toLowerCase().includes('fold'))
+                    .map((act, idx) => (
                     <button
                       key={act.id}
                       type="button"
