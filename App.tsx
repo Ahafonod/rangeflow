@@ -462,7 +462,7 @@ export function getSeatsForTableSize(tableSize: number): string[] {
 
 export function getDefaultVillainSize(scenario: ScenarioType): string {
   if (scenario === 'Facing Open') return '2.5bb';
-  if (scenario === 'Facing 3-Bet') return '8.5bb';
+  if (scenario === 'Facing 3-Bet') return '7.5bb';
   if (scenario === 'Facing 4-Bet') return '22bb';
   return '0bb';
 }
@@ -472,22 +472,22 @@ export function getDefaultActions(scenario: ScenarioType): ChartAction[] {
     case 'Open Raise (RFI)':
       return [
         { id: 'raise', name: 'Raise', size: '2.5bb', color: '#E06C75' },
-        { id: 'call', name: 'Limp / Call', size: '1bb', color: '#68B388' }
+        { id: 'call', name: 'Call', size: '', color: '#68B388' }
       ];
     case 'Facing Open':
       return [
-        { id: 'threeBet', name: '3-Bet', size: '8.5bb', color: '#E5C07B' },
-        { id: 'call', name: 'Call', size: '2.5bb', color: '#68B388' }
+        { id: 'threeBet', name: '3-Bet', size: '7.5bb', color: '#E5C07B' },
+        { id: 'call', name: 'Call', size: '', color: '#68B388' }
       ];
     case 'Facing 3-Bet':
       return [
         { id: 'fourBet', name: '4-Bet', size: '22bb', color: '#C678DD' },
-        { id: 'call', name: 'Call', size: '8.5bb', color: '#68B388' }
+        { id: 'call', name: 'Call', size: '', color: '#68B388' }
       ];
     case 'Facing 4-Bet':
       return [
         { id: 'allIn', name: 'All-In', size: '100bb', color: '#C678DD' },
-        { id: 'call', name: 'Call', size: '22bb', color: '#68B388' }
+        { id: 'call', name: 'Call', size: '', color: '#68B388' }
       ];
   }
 }
@@ -662,7 +662,9 @@ export function buildPreflopFrames(
   const isVs3Bet = situation.toLowerCase().includes('3-bet') || situation.toLowerCase().includes('3bet');
 
   const stackDepth = activeChart?.stackDepth || 100;
-  const customVillainBet = parseFloat(String(activeChart?.villainBetSize ?? activeChart?.facingBetSize ?? ''));
+  const customVillainBet = parseFloat(
+    String(activeChart?.villainBetSize ?? activeChart?.facingBetSize ?? activeChart?.villainSize ?? '')
+  );
   const validVillainBet = !isNaN(customVillainBet) && customVillainBet > 0 ? customVillainBet : null;
 
   let deadBlinds = 0;
@@ -755,8 +757,8 @@ export function buildPreflopFrames(
     for (let i = 0; i < safeVIdx; i++) {
       recordFold(i);
     }
-    // 2. At vIdx (Villain): Villain Opens to validVillainBet or 2.5 BB (3.0 BB if SB)
-    const openSize = validVillainBet ?? (POS_ORDER[safeVIdx] === 'SB' ? 3.0 : 2.5);
+    // 2. At vIdx (Villain): Villain Opens to validVillainBet or 2.5 BB
+    const openSize = validVillainBet ?? 2.5;
     recordBetOrRaise(safeVIdx, openSize, `OPEN ${openSize} BB`);
     // 3. Clockwise from vIdx + 1 to hIdx - 1: Each player between Villain and Hero Folds one by one
     for (let i = safeVIdx + 1; i < hIdx; i++) {
@@ -774,16 +776,15 @@ export function buildPreflopFrames(
     for (let i = 0; i < hIdx; i++) {
       recordFold(i);
     }
-    // 2. At hIdx (Hero): Hero automatically Open Raises to 2.5 BB (3.0 BB if SB)
-    const heroOpenSize = POS_ORDER[hIdx] === 'SB' ? 3.0 : 2.5;
+    // 2. At hIdx (Hero): Hero automatically Open Raises to 2.5 BB
+    const heroOpenSize = 2.5;
     recordBetOrRaise(hIdx, heroOpenSize, `OPEN ${heroOpenSize} BB`);
     // 3. Clockwise from hIdx + 1 to vIdx - 1: Each player between Hero and Villain Folds one by one
     for (let i = hIdx + 1; i < safeVIdx; i++) {
       recordFold(i);
     }
-    // 4. At vIdx (Villain): Villain 3-Bets to validVillainBet or 7.5 BB (10.0 BB if SB/BB)
-    const vPos = POS_ORDER[safeVIdx];
-    const villain3BetSize = validVillainBet ?? (vPos === 'SB' || vPos === 'BB' ? 10.0 : 7.5);
+    // 4. At vIdx (Villain): Villain 3-Bets to validVillainBet or 7.5 BB
+    const villain3BetSize = validVillainBet ?? 7.5;
     recordBetOrRaise(safeVIdx, villain3BetSize, `3-BET ${villain3BetSize} BB`);
     // 5. Clockwise from vIdx + 1 to BB (5): Every remaining player after Villain Folds one by one
     for (let i = safeVIdx + 1; i < POS_ORDER.length; i++) {
@@ -801,22 +802,21 @@ export function buildPreflopFrames(
     recordFold(i);
   }
   // 2. At vIdx (Villain): Villain Opens to 2.5 BB
-  const vOpenSize = POS_ORDER[safeVIdx] === 'SB' ? 3.0 : 2.5;
+  const vOpenSize = 2.5;
   recordBetOrRaise(safeVIdx, vOpenSize, `OPEN ${vOpenSize} BB`);
   // 3. Clockwise from vIdx + 1 to hIdx - 1: Each player between Villain and Hero Folds one by one
   for (let i = safeVIdx + 1; i < hIdx; i++) {
     recordFold(i);
   }
-  // 4. At hIdx (Hero): Hero automatically 3-Bets to 7.5 BB (10.0 BB if SB/BB)
-  const hPos = POS_ORDER[hIdx];
-  const hero3BetSize = hPos === 'SB' || hPos === 'BB' ? 10.0 : 7.5;
+  // 4. At hIdx (Hero): Hero automatically 3-Bets to 7.5 BB
+  const hero3BetSize = 7.5;
   recordBetOrRaise(hIdx, hero3BetSize, `3-BET ${hero3BetSize} BB`);
   // 5. Clockwise from hIdx + 1 to BB (5): Every remaining player Folds one by one (sweeping SB 0.5 BB and BB 1.0 BB into deadBlinds)
   for (let i = hIdx + 1; i < POS_ORDER.length; i++) {
     recordFold(i);
   }
-  // 6. Action wraps back around to vIdx (Villain): Villain 4-Bets to validVillainBet or 20.0 BB
-  const villain4BetSize = validVillainBet ?? 20.0;
+  // 6. Action wraps back around to vIdx (Villain): Villain 4-Bets to validVillainBet or 22 BB
+  const villain4BetSize = validVillainBet ?? 22;
   recordBetOrRaise(safeVIdx, villain4BetSize, `4-BET ${villain4BetSize} BB`);
   // 7. Action returns to hIdx (Hero): Playback finishes, Hero's seat highlights with YOUR TURN while keeping Hero's 7.5 BB 3-bet chip
   recordHeroTurnReady('YOUR TURN');
@@ -839,7 +839,9 @@ export function applyHeroDecisionToFrame(
   const isVs3Bet = situation.toLowerCase().includes('3-bet') || situation.toLowerCase().includes('3bet');
 
   const stackDepth = activeChart?.stackDepth || 100;
-  const customVillainBet = parseFloat(String(activeChart?.villainBetSize ?? activeChart?.facingBetSize ?? ''));
+  const customVillainBet = parseFloat(
+    String(activeChart?.villainBetSize ?? activeChart?.facingBetSize ?? activeChart?.villainSize ?? '')
+  );
   const validVillainBet = !isNaN(customVillainBet) && customVillainBet > 0 ? customVillainBet : null;
 
   const nextSeats = frame.seats.map(s => ({ ...s, isActingNow: false }));
@@ -859,17 +861,34 @@ export function applyHeroDecisionToFrame(
     heroSeat.stack = Number((stackDepth - maxVillainBet).toFixed(1));
     heroSeat.status = `CALL ${maxVillainBet} BB`;
   } else {
-    const raiseTo = isRFI
-      ? heroPos === 'SB'
-        ? 3.0
-        : 2.5
-      : isVsOpen
-      ? heroPos === 'SB' || heroPos === 'BB'
-        ? 10.0
-        : 7.5
-      : isVs3Bet
-      ? 20.0
-      : stackDepth;
+    const matchedAction = activeChart?.actions.find(
+      a => a.name.trim().toUpperCase() === actUpper || a.id.toUpperCase() === actUpper
+    );
+    const configuredActionSize =
+      heroFinalAction.betSize && heroFinalAction.betSize > 0
+        ? heroFinalAction.betSize
+        : matchedAction
+        ? parseFloat(String(matchedAction.size).replace(/[^0-9.]/g, ''))
+        : NaN;
+    const validActionSize =
+      !isNaN(configuredActionSize) && configuredActionSize > 0 ? configuredActionSize : null;
+
+    const defaultFallbackSize =
+      actUpper.includes('4-BET') || actUpper.includes('4BET')
+        ? 22
+        : actUpper.includes('3-BET') || actUpper.includes('3BET')
+        ? 7.5
+        : actUpper.includes('ALL-IN') || actUpper.includes('ALL IN') || actUpper.includes('JAM')
+        ? stackDepth
+        : isRFI
+        ? 2.5
+        : isVsOpen
+        ? 7.5
+        : isVs3Bet
+        ? 22
+        : stackDepth;
+
+    const raiseTo = validActionSize ?? defaultFallbackSize;
     heroSeat.bet = raiseTo;
     heroSeat.stack = Number((stackDepth - raiseTo).toFixed(1));
     heroSeat.status = `${actUpper} ${raiseTo} BB`;
@@ -1493,7 +1512,37 @@ export function getInitialStudioState(): StudioState {
       dailyHands: { date: today, count: dailyHandsCount },
       dailyHandsDate: today,
       dailyHandsCount,
-      charts: parsed.charts || {},
+      charts: Object.fromEntries(
+        Object.entries(parsed.charts || {}).map(([k, v]: [string, any]) => {
+          if (!v || typeof v !== 'object') return [k, v];
+          let vSize = v.villainSize;
+          if (v.scenarioType === 'Facing 3-Bet' && (vSize === '8.5bb' || vSize === '10bb' || !vSize) && v.villainBetSize === undefined) {
+            vSize = '7.5bb';
+          } else if (v.scenarioType === 'Facing 4-Bet' && (vSize === '20bb' || !vSize) && v.villainBetSize === undefined) {
+            vSize = '22bb';
+          }
+          const cleanedActions = Array.isArray(v.actions)
+            ? v.actions.map((act: any) => {
+                const rawLabel = String(act?.label ?? act?.name ?? '').trim();
+                const isCall =
+                  act?.id === 'call' ||
+                  rawLabel.toLowerCase().startsWith('call') ||
+                  rawLabel.toLowerCase() === 'limp / call';
+                if (isCall) {
+                  return { ...act, name: 'Call', size: '' };
+                }
+                if (act?.id === 'threeBet' && (act?.size === '8.5bb' || act?.size === '10bb')) {
+                  return { ...act, size: '7.5bb' };
+                }
+                if (act?.id === 'fourBet' && act?.size === '20bb') {
+                  return { ...act, size: '22bb' };
+                }
+                return act;
+              })
+            : v.actions;
+          return [k, { ...v, villainSize: vSize, actions: cleanedActions }];
+        })
+      ),
       leaks: parsed.leaks || {},
       history: Array.isArray(parsed.history) ? parsed.history : []
     };
@@ -2592,7 +2641,9 @@ export default function App() {
           breakdownParts.push(`${act.name} ${w}%`);
           if (expectedActionId === 'FOLD' && rngRoll < cumulative + w) {
             expectedActionId = act.id;
-            expectedActionName = `${act.name} ${act.size}`;
+            const isActCall =
+              act.id === 'call' || String((act as any).label ?? act.name ?? '').trim().toLowerCase().startsWith('call');
+            expectedActionName = isActCall ? 'Call' : `${act.name} ${act.size}`.trim();
           }
           cumulative += w;
         }
@@ -2604,7 +2655,15 @@ export default function App() {
       }
 
       const chosenActObj = activeTrainedChart.actions.find(a => a.id === chosenActionId);
-      const chosenActionName = chosenActObj ? `${chosenActObj.name} ${chosenActObj.size}` : 'Fold';
+      const isChosenCall =
+        chosenActObj &&
+        (chosenActObj.id === 'call' ||
+          String((chosenActObj as any).label ?? chosenActObj.name ?? '').trim().toLowerCase().startsWith('call'));
+      const chosenActionName = chosenActObj
+        ? isChosenCall
+          ? 'Call'
+          : `${chosenActObj.name} ${chosenActObj.size}`.trim()
+        : 'Fold';
 
       // A choice is correct if it matches the RNG roll interval OR if the chosen action has 100% weight
       const chosenWeight = chosenActionId === 'FOLD' ? foldWeight : (cell[chosenActionId] || 0);
@@ -4461,6 +4520,12 @@ export default function App() {
                     const isSelected = selectedActionId === action.id;
                     const combos = chartStats.actionCombos[action.id] || 0;
                     const pct = (combos / 1326) * 100;
+                    const rawLabel = String((action as any).label ?? action.name ?? '').trim();
+                    const isCallAction =
+                      action.id === 'call' ||
+                      rawLabel.toLowerCase().startsWith('call') ||
+                      rawLabel.toLowerCase() === 'limp / call';
+                    const displayActionLabel = isCallAction ? 'Call' : rawLabel;
 
                     return (
                       <div
@@ -4508,24 +4573,26 @@ export default function App() {
                             className="w-4 h-4 rounded shadow-sm shrink-0 border border-white/20"
                             style={{ backgroundColor: action.color }}
                           />
-                          <span className="text-xs font-bold text-white">{action.name}</span>
+                          <span className="text-xs font-bold text-white">{displayActionLabel}</span>
 
-                          {/* Inline clickable Sizing Input */}
-                          <input
-                            type="text"
-                            value={action.size}
-                            draggable={false}
-                            onMouseDown={(e) => e.stopPropagation()}
-                            onClick={e => e.stopPropagation()}
-                            onChange={e => {
-                              const val = e.target.value;
-                              updateChart(currentSpotId, c => ({
-                                ...c,
-                                actions: c.actions.map(a => (a.id === action.id ? { ...a, size: val } : a))
-                              }));
-                            }}
-                            className="w-16 bg-[#0B0D12] border border-[#232938] focus:border-[#E06C75] rounded px-1.5 py-0.5 text-[11px] font-semibold text-slate-200 focus:outline-none"
-                          />
+                          {/* Inline clickable Sizing Input (hidden for Call actions) */}
+                          {!isCallAction && (
+                            <input
+                              type="text"
+                              value={action.size}
+                              draggable={false}
+                              onMouseDown={(e) => e.stopPropagation()}
+                              onClick={e => e.stopPropagation()}
+                              onChange={e => {
+                                const val = e.target.value;
+                                updateChart(currentSpotId, c => ({
+                                  ...c,
+                                  actions: c.actions.map(a => (a.id === action.id ? { ...a, size: val } : a))
+                                }));
+                              }}
+                              className="w-16 bg-[#0B0D12] border border-[#232938] focus:border-[#E06C75] rounded px-1.5 py-0.5 text-[11px] font-semibold text-slate-200 focus:outline-none"
+                            />
+                          )}
 
                           {/* Small edit/delete icons on hover */}
                           <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -5169,7 +5236,10 @@ export default function App() {
                         [{idx + 1}]
                       </span>
                       <span>
-                        {act.name} {act.size}
+                        {act.id === 'call' ||
+                        String((act as any).label ?? act.name ?? '').trim().toLowerCase().startsWith('call')
+                          ? 'Call'
+                          : `${act.name} ${act.size}`.trim()}
                       </span>
                     </button>
                   ))}
