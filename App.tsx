@@ -3473,10 +3473,10 @@ export default function App() {
           <button
             type="button"
             onClick={() => setActiveView('editor')}
-            className={`px-3.5 py-1.5 rounded-md text-xs font-semibold transition-all flex items-center gap-1.5 ${
+            className={`px-3.5 py-1.5 rounded-md text-xs font-semibold border transition-colors duration-150 outline-none focus:outline-none flex items-center gap-1.5 ${
               activeView === 'editor'
-                ? 'bg-[#181D29] text-white shadow-sm border border-white/10'
-                : 'text-slate-400 hover:text-slate-200'
+                ? 'bg-[#181D29] text-white shadow-sm border-white/10'
+                : 'border-transparent text-slate-400 hover:text-slate-200'
             }`}
           >
             <Sliders className="w-3.5 h-3.5 text-[#818CF8]" />
@@ -3500,10 +3500,10 @@ export default function App() {
                 }
               }
             }}
-            className={`px-3.5 py-1.5 rounded-md text-xs font-semibold transition-all flex items-center gap-1.5 ${
+            className={`px-3.5 py-1.5 rounded-md text-xs font-semibold border transition-colors duration-150 outline-none focus:outline-none flex items-center gap-1.5 ${
               activeView === 'trainer'
-                ? 'bg-[#181D29] text-white shadow-sm border border-white/10'
-                : 'text-slate-400 hover:text-slate-200'
+                ? 'bg-[#181D29] text-white shadow-sm border-white/10'
+                : 'border-transparent text-slate-400 hover:text-slate-200'
             }`}
           >
             <Play className="w-3.5 h-3.5 text-[#68B388]" />
@@ -3513,10 +3513,10 @@ export default function App() {
           <button
             type="button"
             onClick={() => setActiveView('leaks')}
-            className={`px-3.5 py-1.5 rounded-md text-xs font-semibold transition-all flex items-center gap-2 ${
+            className={`px-3.5 py-1.5 rounded-md text-xs font-semibold border transition-colors duration-150 outline-none focus:outline-none flex items-center gap-2 ${
               activeView === 'leaks'
-                ? 'bg-[#6366F1]/15 border border-[#818CF8]/40 text-[#EEF2FF] shadow-sm'
-                : 'text-slate-400 hover:text-slate-200'
+                ? 'bg-[#6366F1]/15 border-[#818CF8]/40 text-[#EEF2FF] shadow-sm'
+                : 'border-transparent text-slate-400 hover:text-slate-200'
             }`}
           >
             <Flame
@@ -3526,10 +3526,10 @@ export default function App() {
             />
             <span>Leaks</span>
             <span
-              className={`px-1.5 py-0.2 rounded-full text-[10px] border ${
+              className={`px-1.5 py-0.2 rounded-full text-[10px] ${
                 activeLeaksList.length > 0
-                  ? 'bg-[#E06C75]/15 border-[#E06C75]/40 text-[#E06C75] font-bold'
-                  : 'bg-white/5 border-white/10 text-slate-400 font-semibold'
+                  ? 'bg-[#E06C75]/30 border border-[#E06C75]/60 text-white font-bold'
+                  : 'bg-white/5 border border-white/10 text-slate-400 font-semibold'
               }`}
             >
               {activeLeaksList.length}
@@ -3552,8 +3552,8 @@ export default function App() {
           </button>
 
           {userTier === 'pro' || state.isPro ? (
-            <div className="px-3 py-1.5 rounded-lg bg-[#181D29] border border-[#E5C07B]/60 shadow-[0_0_12px_rgba(229,192,123,0.3)] text-xs font-extrabold text-[#E5C07B] flex items-center gap-1.5 select-none">
-              <Crown className="w-3.5 h-3.5 text-[#E5C07B]" />
+            <div className="bg-[#E5C17B]/20 hover:bg-[#E5C17B]/35 border border-[#E5C17B]/60 hover:border-[#E5C17B] text-white text-xs font-semibold rounded-full px-3.5 py-1.5 transition-colors flex items-center gap-1.5 shadow-[0_0_12px_rgba(229,193,123,0.15)] select-none">
+              <Crown className="w-3.5 h-3.5 text-[#E5C17B]" />
               <span>PRO</span>
             </div>
           ) : (
@@ -3567,9 +3567,9 @@ export default function App() {
                   setProModalReason('');
                   setShowProModal(true);
                 }}
-                className="px-3 py-1.5 rounded-lg bg-[#E5C07B] hover:bg-[#D4B46A] text-[#0B0D12] text-xs font-extrabold flex items-center gap-1.5 transition-colors shadow-sm"
+                className="bg-[#E5C17B]/20 hover:bg-[#E5C17B]/35 border border-[#E5C17B]/60 hover:border-[#E5C17B] text-white text-xs font-semibold rounded-full px-3.5 py-1.5 transition-colors flex items-center gap-1.5 shadow-[0_0_12px_rgba(229,193,123,0.15)] outline-none focus:outline-none"
               >
-                <Crown className="w-3.5 h-3.5" />
+                <Crown className="w-3.5 h-3.5 text-[#E5C17B]" />
                 <span>Upgrade to PRO</span>
               </button>
             </div>
@@ -3669,9 +3669,9 @@ export default function App() {
                 return (
                   <div
                     key={folder.id}
-                    className={`group flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer border ${
+                    className={`group flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors duration-150 outline-none focus:outline-none cursor-pointer ${
                       isActive
-                        ? 'bg-[#6366F1]/15 border border-[#818CF8]/50 text-[#EEF2FF] font-semibold shadow-[0_0_12px_rgba(99,102,241,0.12)]'
+                        ? 'bg-[#6366F1]/15 border-[#818CF8]/50 text-[#EEF2FF] font-semibold shadow-[0_0_12px_rgba(99,102,241,0.12)]'
                         : 'bg-[#181D29] text-slate-300 border-[#232938] hover:border-slate-600'
                     }`}
                     onClick={() => setState(prev => ({ ...prev, activeFolderId: folder.id }))}
@@ -3753,9 +3753,9 @@ export default function App() {
               <button
                 type="button"
                 onClick={() => setShowAllChartsBrowser(prev => !prev)}
-                className={`px-3 py-1.5 rounded-lg border text-xs font-semibold flex items-center gap-1.5 transition-colors ${
+                className={`px-3 py-1.5 rounded-lg border text-xs font-semibold flex items-center gap-1.5 transition-colors duration-150 outline-none focus:outline-none ${
                   showAllChartsBrowser
-                    ? 'bg-[#6366F1]/15 border border-[#818CF8]/50 text-[#EEF2FF] font-semibold shadow-[0_0_12px_rgba(99,102,241,0.12)]'
+                    ? 'bg-[#6366F1]/15 border-[#818CF8]/50 text-[#EEF2FF] font-semibold shadow-[0_0_12px_rgba(99,102,241,0.12)]'
                     : 'bg-[#181D29] hover:bg-[#232938] border-[#232938] text-slate-200'
                 }`}
               >
@@ -3833,9 +3833,9 @@ export default function App() {
                                 <div
                                   key={c.spotId}
                                   onClick={() => handleJumpToSavedChart(c)}
-                                  className={`group px-2.5 py-2 rounded-lg border text-xs flex items-center justify-between gap-2 cursor-pointer transition-all ${
+                                  className={`group px-2.5 py-2 rounded-lg border text-xs flex items-center justify-between gap-2 cursor-pointer transition-colors duration-150 outline-none focus:outline-none ${
                                     isCurrent
-                                      ? 'bg-[#6366F1]/15 border border-[#818CF8]/50 text-[#EEF2FF] shadow-[0_0_12px_rgba(99,102,241,0.12)]'
+                                      ? 'bg-[#6366F1]/15 border-[#818CF8]/50 text-[#EEF2FF] shadow-[0_0_12px_rgba(99,102,241,0.12)]'
                                       : 'bg-[#181D29] border-[#232938] text-slate-200 hover:border-slate-500'
                                   }`}
                                 >
@@ -3889,9 +3889,9 @@ export default function App() {
                               <div
                                 key={c.spotId}
                                 onClick={() => handleJumpToSavedChart(c)}
-                                className={`group px-2.5 py-2 rounded-lg border text-xs flex items-center justify-between gap-2 cursor-pointer transition-all ${
+                                className={`group px-2.5 py-2 rounded-lg border text-xs flex items-center justify-between gap-2 cursor-pointer transition-colors duration-150 outline-none focus:outline-none ${
                                   isCurrent
-                                    ? 'bg-[#6366F1]/15 border border-[#818CF8]/50 text-[#EEF2FF] shadow-[0_0_12px_rgba(99,102,241,0.12)]'
+                                    ? 'bg-[#6366F1]/15 border-[#818CF8]/50 text-[#EEF2FF] shadow-[0_0_12px_rgba(99,102,241,0.12)]'
                                     : 'bg-[#181D29] border-[#232938] text-slate-200 hover:border-slate-500'
                                 }`}
                               >
@@ -3934,10 +3934,10 @@ export default function App() {
                   <div
                     key={p}
                     onClick={() => setState(prev => ({ ...prev, activeTableSize: p, activePositions: getSeatsForTableSize(p) }))}
-                    className={`group px-2.5 py-1 rounded-md text-xs font-semibold transition-all cursor-pointer flex items-center gap-1 ${
+                    className={`group px-2.5 py-1 rounded-md text-xs font-semibold border transition-colors duration-150 outline-none focus:outline-none cursor-pointer flex items-center gap-1 ${
                       state.activeTableSize === p
-                        ? 'bg-[#6366F1]/15 border border-[#818CF8]/50 text-[#EEF2FF] font-semibold shadow-[0_0_12px_rgba(99,102,241,0.12)]'
-                        : 'bg-[#181D29] text-slate-300 hover:bg-[#232938] border border-[#232938]'
+                        ? 'bg-[#6366F1]/15 border-[#818CF8]/50 text-[#EEF2FF] font-semibold shadow-[0_0_12px_rgba(99,102,241,0.12)]'
+                        : 'bg-[#181D29] text-slate-300 hover:bg-[#232938] border-[#232938]'
                     }`}
                   >
                     <span>{p}-Max</span>
@@ -4000,10 +4000,10 @@ export default function App() {
                   <div
                     key={s}
                     onClick={() => setState(prev => ({ ...prev, activeStackDepth: s }))}
-                    className={`group px-2.5 py-1 rounded-md text-xs font-semibold transition-all cursor-pointer flex items-center gap-1 ${
+                    className={`group px-2.5 py-1 rounded-md text-xs font-semibold border transition-colors duration-150 outline-none focus:outline-none cursor-pointer flex items-center gap-1 ${
                       state.activeStackDepth === s
-                        ? 'bg-[#6366F1]/15 border border-[#818CF8]/50 text-[#EEF2FF] font-semibold shadow-[0_0_12px_rgba(99,102,241,0.12)]'
-                        : 'bg-[#181D29] text-slate-300 hover:bg-[#232938] border border-[#232938]'
+                        ? 'bg-[#6366F1]/15 border-[#818CF8]/50 text-[#EEF2FF] font-semibold shadow-[0_0_12px_rgba(99,102,241,0.12)]'
+                        : 'bg-[#181D29] text-slate-300 hover:bg-[#232938] border-[#232938]'
                     }`}
                   >
                     <span>{s} BB</span>
@@ -4067,9 +4067,9 @@ export default function App() {
                     key={scen}
                     type="button"
                     onClick={() => setState(prev => ({ ...prev, activeScenario: scen }))}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all border ${
+                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors duration-150 outline-none focus:outline-none ${
                       state.activeScenario === scen
-                        ? 'bg-[#6366F1]/15 border border-[#818CF8]/50 text-[#EEF2FF] font-semibold shadow-[0_0_12px_rgba(99,102,241,0.12)]'
+                        ? 'bg-[#6366F1]/15 border-[#818CF8]/50 text-[#EEF2FF] font-semibold shadow-[0_0_12px_rgba(99,102,241,0.12)]'
                         : 'bg-[#0B0D12] text-slate-400 border-[#232938] hover:text-slate-200'
                     }`}
                   >
@@ -4106,7 +4106,7 @@ export default function App() {
                 <button
                   type="button"
                   onClick={handleTrainCurrentSpot}
-                  className="px-3.5 py-1.5 rounded-lg bg-[#4F46E5] hover:bg-[#6366F1] text-white font-bold text-xs shadow-sm shadow-[#4F46E5]/25 transition-all flex items-center gap-1.5"
+                  className="px-3.5 py-1.5 rounded-lg bg-[#4F46E5] hover:bg-[#6366F1] text-white font-bold text-xs shadow-sm shadow-[#4F46E5]/25 transition-colors duration-150 outline-none focus:outline-none flex items-center gap-1.5"
                 >
                   <Play className="w-3.5 h-3.5 fill-current" />
                   <span>Train This Spot</span>
@@ -4198,7 +4198,7 @@ export default function App() {
                               setState(prev => ({ ...prev, activeHeroPos: seat }));
                             }
                           }}
-                          className={`group relative h-8 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1 border ${
+                          className={`group relative h-8 rounded-lg text-xs font-bold border transition-colors duration-150 outline-none focus:outline-none flex items-center justify-center gap-1 ${
                             isDisabled
                               ? 'bg-[#0B0D12]/50 text-slate-600 border-[#232938]/50 cursor-not-allowed'
                               : isHero
@@ -4251,7 +4251,7 @@ export default function App() {
                         return (
                           <div
                             key={seat}
-                            className="h-7 rounded-md bg-[#6366F1]/15 border border-[#818CF8]/40 text-[#818CF8] text-[11px] font-bold flex items-center justify-center"
+                            className="h-7 rounded-md bg-[#6366F1]/15 border border-[#818CF8]/40 text-white text-[11px] font-bold flex items-center justify-center"
                           >
                             HERO
                           </div>
@@ -4295,9 +4295,9 @@ export default function App() {
                           key={seat}
                           type="button"
                           onClick={() => setState(prev => ({ ...prev, activeVillainPos: seat }))}
-                          className={`h-7 rounded-md text-[11px] font-semibold transition-all border ${
+                          className={`h-7 rounded-md text-[11px] font-semibold border transition-colors duration-150 outline-none focus:outline-none ${
                             isVillain
-                              ? 'bg-[#E5C07B]/20 text-[#E5C07B] border-[#E5C07B]'
+                              ? 'bg-[#E5C07B]/20 text-white border-[#E5C07B]'
                               : 'bg-[#181D29] text-slate-400 border-[#232938] hover:text-slate-200'
                           }`}
                         >
@@ -4322,7 +4322,7 @@ export default function App() {
                         return (
                           <div
                             key={seat}
-                            className="h-7 rounded-md bg-[#6366F1]/15 border border-[#818CF8]/40 text-[#818CF8] text-[11px] font-bold flex items-center justify-center"
+                            className="h-7 rounded-md bg-[#6366F1]/15 border border-[#818CF8]/40 text-white text-[11px] font-bold flex items-center justify-center"
                           >
                             HERO
                           </div>
@@ -4349,9 +4349,9 @@ export default function App() {
                             key={seat}
                             type="button"
                             onClick={() => setState(prev => ({ ...prev, activeVillainPos: seat }))}
-                            className={`h-7 rounded-md text-[11px] font-semibold transition-all border ${
+                            className={`h-7 rounded-md text-[11px] font-semibold border transition-colors duration-150 outline-none focus:outline-none ${
                               isVillain
-                                ? 'bg-[#C678DD]/25 text-[#C678DD] border-[#C678DD]'
+                                ? 'bg-[#C678DD]/25 text-white border-[#C678DD]'
                                 : 'bg-[#181D29] text-slate-400 border-[#232938] hover:text-slate-200'
                             }`}
                           >
@@ -4409,10 +4409,10 @@ export default function App() {
                       onClick={() =>
                         updateChart(currentSpotId, c => ({ ...c, strategyMode: 'raw' }))
                       }
-                      className={`px-2.5 py-1 rounded-md text-xs font-semibold transition-all ${
+                      className={`px-2.5 py-1 rounded-md text-xs font-semibold border transition-colors duration-150 outline-none focus:outline-none ${
                         currentChart.strategyMode === 'raw'
-                          ? 'bg-[#181D29] text-white shadow-sm border border-white/10'
-                          : 'text-slate-400 hover:text-slate-200'
+                          ? 'bg-[#181D29] text-white shadow-sm border-white/10'
+                          : 'border-transparent text-slate-400 hover:text-slate-200'
                       }`}
                     >
                       Raw (Mixed)
@@ -4427,10 +4427,10 @@ export default function App() {
                         }
                         updateChart(currentSpotId, c => ({ ...c, strategyMode: 'pure' }));
                       }}
-                      className={`px-2.5 py-1 rounded-md text-xs font-semibold transition-all flex items-center gap-1.5 ${
+                      className={`px-2.5 py-1 rounded-md text-xs font-semibold border transition-colors duration-150 outline-none focus:outline-none flex items-center gap-1.5 ${
                         currentChart.strategyMode === 'pure' && (userTier === 'pro' || state.isPro)
-                          ? 'bg-[#6366F1]/15 border border-[#818CF8]/50 text-[#EEF2FF] font-semibold shadow-[0_0_12px_rgba(99,102,241,0.12)]'
-                          : 'text-slate-400 hover:text-slate-200'
+                          ? 'bg-[#6366F1]/15 border-[#818CF8]/50 text-[#EEF2FF] font-semibold shadow-[0_0_12px_rgba(99,102,241,0.12)]'
+                          : 'border-transparent text-slate-400 hover:text-slate-200'
                       }`}
                     >
                       {userTier !== 'pro' && !state.isPro && (
@@ -4667,7 +4667,7 @@ export default function App() {
                           setDragOverActionId(null);
                         }}
                         onClick={() => setSelectedActionId(action.id)}
-                        className={`group rounded-lg p-2.5 flex items-center justify-between transition-all cursor-pointer border ${
+                        className={`group rounded-lg p-2.5 flex items-center justify-between transition-colors duration-150 outline-none focus:outline-none cursor-pointer border ${
                           isSelected
                             ? 'bg-[#181D29] border-[#818CF8]/60 shadow-sm ring-1 ring-[#6366F1]/50'
                             : 'bg-[#181D29]/70 border-[#232938] hover:border-slate-600'
@@ -4769,10 +4769,10 @@ export default function App() {
                           key={preset}
                           type="button"
                           onClick={() => setBrushWeight(preset)}
-                          className={`px-2 py-0.5 rounded text-[11px] font-bold transition-colors ${
+                          className={`px-2 py-0.5 rounded text-[11px] font-bold border transition-colors duration-150 outline-none focus:outline-none ${
                             brushWeight === preset
-                              ? 'bg-[#6366F1]/15 border border-[#818CF8]/50 text-[#EEF2FF] shadow-[0_0_12px_rgba(99,102,241,0.12)]'
-                              : 'bg-[#181D29] text-slate-300 hover:bg-[#232938] border border-[#232938]'
+                              ? 'bg-[#6366F1]/15 border-[#818CF8]/50 text-[#EEF2FF] shadow-[0_0_12px_rgba(99,102,241,0.12)]'
+                              : 'bg-[#181D29] text-slate-300 hover:bg-[#232938] border-[#232938]'
                           }`}
                         >
                           {preset}%
@@ -4838,7 +4838,7 @@ export default function App() {
                         onMouseEnter={() => setHoveredBucketId(bucket.id)}
                         onMouseLeave={() => setHoveredBucketId(null)}
                         onClick={() => handleBucketClick(bucket)}
-                        className={`relative rounded-lg p-2.5 bg-[#181D29] border transition-all cursor-pointer select-none flex flex-col gap-1 ${
+                        className={`relative rounded-lg p-2.5 bg-[#181D29] border transition-colors duration-150 outline-none focus:outline-none cursor-pointer select-none flex flex-col gap-1 ${
                           isHovered
                             ? 'border-[#818CF8]/60 shadow-md bg-[#1C2230]'
                             : 'border-[#232938] hover:border-slate-600'
@@ -4861,7 +4861,7 @@ export default function App() {
                           <span
                             className={`px-1.5 py-0.5 rounded text-[10px] font-bold shrink-0 ${
                               paintedCount > 0
-                                ? 'bg-[#6366F1]/20 text-[#818CF8] border border-[#818CF8]/40'
+                                ? 'bg-[#6366F1]/20 text-white border border-[#818CF8]/40'
                                 : 'bg-[#0B0D12] text-slate-400 border border-[#232938]'
                             }`}
                           >
@@ -4898,7 +4898,7 @@ export default function App() {
                   setDrawerStackDepth(state.activeStackDepth);
                   setShowSpotSelectorDrawer(true);
                 }}
-                className="px-3.5 py-1.5 rounded-lg bg-[#181D29] hover:bg-[#232938] border border-[#818CF8]/60/50 text-xs font-bold text-white flex items-center gap-1.5 transition-colors"
+                className="px-3.5 py-1.5 rounded-lg bg-[#181D29] hover:bg-[#232938] border border-[#818CF8]/50 text-xs font-bold text-white flex items-center gap-1.5 transition-colors duration-150 outline-none focus:outline-none"
               >
                 <span>▽ Select Spots ({selectedTrainerSpots.filter(id => isChartPopulated(state.charts[id])).length})</span>
               </button>
@@ -4914,10 +4914,10 @@ export default function App() {
               <button
                 type="button"
                 onClick={() => startLeakTraining('ALL', 'ALL', 'ALL', 'All Active Leaks')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all ${
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold border flex items-center gap-1.5 transition-colors duration-150 outline-none focus:outline-none ${
                   activeLeaksList.length > 0
-                    ? 'bg-[#E06C75]/20 border border-[#E06C75]/50 text-white shadow-[0_0_12px_rgba(224,108,117,0.15)] hover:bg-[#E06C75]/40 hover:border-[#E06C75]/80 hover:text-white hover:shadow-[0_0_16px_rgba(224,108,117,0.28)]'
-                    : 'bg-[#181D29] hover:bg-[#232938] border border-[#232938] text-slate-300'
+                    ? 'bg-[#E06C75]/20 border-[#E06C75]/50 text-white shadow-[0_0_12px_rgba(224,108,117,0.15)] hover:bg-[#E06C75]/40 hover:border-[#E06C75]/80 hover:text-white hover:shadow-[0_0_16px_rgba(224,108,117,0.28)]'
+                    : 'bg-[#181D29] hover:bg-[#232938] border-[#232938] text-slate-300'
                 }`}
               >
                 {userTier !== 'pro' && !state.isPro ? (
@@ -4931,10 +4931,10 @@ export default function App() {
                 )}
                 <span className="text-white">Train Leaks</span>
                 <span
-                  className={`px-1.5 py-0.2 rounded-full text-[10px] border ${
+                  className={`px-1.5 py-0.2 rounded-full text-[10px] ${
                     activeLeaksList.length > 0
-                      ? 'bg-[#E06C75]/25 border-[#E06C75]/50 text-white font-bold'
-                      : 'bg-white/5 border-white/10 text-slate-400 font-semibold'
+                      ? 'bg-[#E06C75]/30 border border-[#E06C75]/60 text-white font-bold'
+                      : 'bg-white/5 border border-white/10 text-slate-400 font-semibold'
                   }`}
                 >
                   {activeLeaksList.length} Leaks
@@ -4942,8 +4942,8 @@ export default function App() {
               </button>
 
               {isLeakTrainingMode && leakFilterCriteria && (
-                <div className="flex items-center gap-2 px-3 py-1 rounded-lg bg-[#E06C75]/15 border border-[#E06C75]/50 text-xs font-bold text-[#E06C75]">
-                  <Flame className="w-3.5 h-3.5" />
+                <div className="flex items-center gap-2 px-3 py-1 rounded-lg bg-[#E06C75]/15 border border-[#E06C75]/50 text-xs font-bold text-white">
+                  <Flame className="w-3.5 h-3.5 text-[#E06C75]" />
                   <span>SRS Leak Session: {leakFilterCriteria.label}</span>
                   <button
                     type="button"
@@ -4972,10 +4972,10 @@ export default function App() {
                     key={spd}
                     type="button"
                     onClick={() => setTrainerSpeed(spd)}
-                    className={`px-2.5 py-1 rounded-md text-xs font-semibold transition-all ${
+                    className={`px-2.5 py-1 rounded-md text-xs font-semibold border transition-colors duration-150 outline-none focus:outline-none ${
                       trainerSpeed === spd
-                        ? 'bg-[#6366F1]/15 border border-[#818CF8]/50 text-[#EEF2FF] font-semibold shadow-[0_0_12px_rgba(99,102,241,0.12)]'
-                        : 'text-slate-400 hover:text-slate-200'
+                        ? 'bg-[#6366F1]/15 border-[#818CF8]/50 text-[#EEF2FF] font-semibold shadow-[0_0_12px_rgba(99,102,241,0.12)]'
+                        : 'border-transparent text-slate-400 hover:text-slate-200'
                     }`}
                   >
                     {spd}
@@ -5194,7 +5194,7 @@ export default function App() {
                                       ? 'bg-[#181D29] border-[#818CF8]/60 text-white ring-2 ring-[#6366F1]/50 shadow-[0_0_16px_rgba(99,102,241,0.35)]'
                                       : 'bg-[#181D29] border-[#E5C07B] text-white ring-2 ring-[#E5C07B] shadow-[0_0_16px_rgba(229,192,123,0.45)]'
                                     : isHeroSeat
-                                    ? 'bg-[#181D29] border-[#818CF8]/60/70 text-white'
+                                    ? 'bg-[#181D29] border-[#818CF8]/70 text-white'
                                     : seatObj.isVillain && seatObj.bet > 1
                                     ? 'bg-[#181D29] border-[#E5C07B]/80 text-white'
                                     : seatObj.dimmed
@@ -5221,9 +5221,9 @@ export default function App() {
                                         : seatObj.status.startsWith('YOUR TURN')
                                         ? 'bg-[#6366F1] text-white'
                                         : seatObj.isVillain && seatObj.bet > 1
-                                        ? 'bg-[#E5C07B]/20 text-[#E5C07B] border border-[#E5C07B]/40'
+                                        ? 'bg-[#E5C07B]/20 text-white border border-[#E5C07B]/40'
                                         : isHeroSeat && seatObj.bet > 1
-                                        ? 'bg-[#6366F1]/20 text-[#818CF8] border border-[#818CF8]/40'
+                                        ? 'bg-[#6366F1]/20 text-white border border-[#818CF8]/40'
                                         : 'bg-[#181D29] text-slate-300 border border-[#232938]'
                                     }`}
                                   >
@@ -5328,7 +5328,7 @@ export default function App() {
                     type="button"
                     disabled={trainerPhase !== 'HERO_TURN'}
                     onClick={() => handleTrainerAction('FOLD')}
-                    className={`px-5 py-3 rounded-xl font-bold text-xs border transition-all flex items-center gap-2 ${
+                    className={`px-5 py-3 rounded-xl font-bold text-xs border transition-colors duration-150 outline-none focus:outline-none flex items-center gap-2 ${
                       trainerPhase === 'HERO_TURN'
                         ? 'bg-[#1C212E] hover:bg-[#252C3D] text-white border-white/15 shadow-lg'
                         : 'bg-[#181D29]/50 text-slate-500 border-[#232938] cursor-not-allowed'
@@ -5353,7 +5353,7 @@ export default function App() {
                           ? { backgroundColor: act.color, borderColor: 'rgba(255,255,255,0.25)' }
                           : undefined
                       }
-                      className={`px-5 py-3 rounded-xl font-bold text-xs border transition-all flex items-center gap-2 ${
+                      className={`px-5 py-3 rounded-xl font-bold text-xs border transition-colors duration-150 outline-none focus:outline-none flex items-center gap-2 ${
                         trainerPhase === 'HERO_TURN'
                           ? 'text-[#0B0D12] shadow-lg hover:brightness-110'
                           : 'bg-[#181D29]/50 text-slate-500 border-[#232938] cursor-not-allowed'
@@ -5472,10 +5472,10 @@ export default function App() {
                   <span>Spaced Repetition Leak Engine (0 → 1 → 2 → Removed)</span>
                 </h1>
                 <span
-                  className={`px-2.5 py-0.5 rounded-full text-xs border ${
+                  className={`px-2.5 py-0.5 rounded-full text-xs ${
                     activeLeaksList.length > 0
-                      ? 'bg-[#E06C75]/15 border-[#E06C75]/40 text-[#E06C75] font-bold'
-                      : 'text-slate-400 bg-white/5 border-white/10 font-semibold'
+                      ? 'bg-[#E06C75]/30 border border-[#E06C75]/60 text-white font-bold'
+                      : 'text-slate-400 bg-white/5 border border-white/10 font-semibold'
                   }`}
                 >
                   {activeLeaksList.length} {activeLeaksList.length === 1 ? 'Leak' : 'Leaks'}
@@ -5492,7 +5492,7 @@ export default function App() {
               <button
                 type="button"
                 onClick={() => setLeaksFolderFilter('ALL')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all border ${
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors duration-150 outline-none focus:outline-none ${
                   leaksFolderFilter === 'ALL'
                     ? 'bg-[#6366F1]/15 border-[#818CF8]/40 text-[#EEF2FF] font-semibold shadow-[0_0_12px_rgba(99,102,241,0.12)]'
                     : 'bg-[#0B0D12] text-slate-400 border-white/5 hover:border-white/15 hover:text-slate-200'
@@ -5505,7 +5505,7 @@ export default function App() {
                   key={f.id}
                   type="button"
                   onClick={() => setLeaksFolderFilter(f.id)}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all border ${
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors duration-150 outline-none focus:outline-none ${
                     leaksFolderFilter === f.id
                       ? 'bg-[#6366F1]/15 border-[#818CF8]/40 text-[#EEF2FF] font-semibold shadow-[0_0_12px_rgba(99,102,241,0.12)]'
                       : 'bg-[#0B0D12] text-slate-400 border-white/5 hover:border-white/15 hover:text-slate-200'
@@ -5537,7 +5537,7 @@ export default function App() {
                 <div
                   key={scen}
                   onClick={() => setLeaksScenarioFilter(isSelectedScen ? 'ALL' : scen)}
-                  className={`rounded-xl p-4 border transition-all cursor-pointer flex flex-col justify-between gap-3 ${
+                  className={`rounded-xl p-4 border transition-colors duration-150 outline-none focus:outline-none cursor-pointer flex flex-col justify-between gap-3 ${
                     isSelectedScen
                       ? 'bg-[#6366F1]/15 border-[#818CF8]/40 text-[#EEF2FF] shadow-[0_0_12px_rgba(99,102,241,0.12)]'
                       : leakCount > 0
@@ -5555,10 +5555,10 @@ export default function App() {
                       </div>
                     </div>
                     <span
-                      className={`px-2 py-0.5 rounded-full text-xs border ${
+                      className={`px-2 py-0.5 rounded-full text-xs ${
                         leakCount > 0
-                          ? 'bg-[#E06C75]/15 border-[#E06C75]/40 text-[#E06C75] font-extrabold'
-                          : 'bg-white/5 text-slate-500 border-white/10 font-semibold'
+                          ? 'bg-[#E06C75]/30 border border-[#E06C75]/60 text-white font-bold'
+                          : 'bg-white/5 text-slate-500 border border-white/10 font-semibold'
                       }`}
                     >
                       {leakCount} {leakCount === 1 ? 'Leak' : 'Leaks'}
@@ -5587,7 +5587,7 @@ export default function App() {
                       e.stopPropagation();
                       startLeakTraining(leaksFolderFilter, scen, 'ALL', scen);
                     }}
-                    className={`w-full py-1.5 rounded-lg text-xs font-semibold border transition-all flex items-center justify-center gap-1.5 ${
+                    className={`w-full py-1.5 rounded-lg text-xs font-semibold border transition-colors duration-150 outline-none focus:outline-none flex items-center justify-center gap-1.5 ${
                       leakCount > 0
                         ? 'bg-[#E06C75]/20 border-[#E06C75]/50 text-white shadow-[0_0_12px_rgba(224,108,117,0.15)] hover:bg-[#E06C75]/40 hover:border-[#E06C75]/80 hover:text-white hover:shadow-[0_0_16px_rgba(224,108,117,0.28)]'
                         : 'bg-white/5 border-white/10 text-slate-500 hover:bg-white/10 hover:text-slate-300'
@@ -5639,7 +5639,7 @@ export default function App() {
                   <div
                     key={pos}
                     onClick={() => setLeaksPositionFilter(isSelectedPos ? 'ALL' : pos)}
-                    className={`rounded-xl p-3 border transition-all cursor-pointer flex flex-col justify-between gap-2 ${
+                    className={`rounded-xl p-3 border transition-colors duration-150 outline-none focus:outline-none cursor-pointer flex flex-col justify-between gap-2 ${
                       isSelectedPos
                         ? 'bg-[#6366F1]/15 border-[#818CF8]/40 text-[#EEF2FF] shadow-[0_0_12px_rgba(99,102,241,0.12)]'
                         : leakCount > 0
@@ -5652,10 +5652,10 @@ export default function App() {
                         {pos}
                       </span>
                       <span
-                        className={`px-2 py-0.5 rounded-full text-[10px] border ${
+                        className={`px-2 py-0.5 rounded-full text-[10px] ${
                           leakCount > 0
-                            ? 'bg-[#E06C75]/15 border-[#E06C75]/40 text-[#E06C75] font-bold'
-                            : 'bg-white/5 text-slate-500 border-white/10 font-semibold'
+                            ? 'bg-[#E06C75]/30 border border-[#E06C75]/60 text-white font-bold'
+                            : 'bg-white/5 text-slate-500 border border-white/10 font-semibold'
                         }`}
                       >
                         {leakCount} {leakCount === 1 ? 'leak' : 'leaks'}
@@ -5670,7 +5670,7 @@ export default function App() {
                         e.stopPropagation();
                         startLeakTraining(leaksFolderFilter, leaksScenarioFilter, pos, `${pos} Leaks`);
                       }}
-                      className={`w-full py-1 rounded-md text-[11px] font-semibold border transition-all flex items-center justify-center gap-1 ${
+                      className={`w-full py-1 rounded-md text-[11px] font-semibold border transition-colors duration-150 outline-none focus:outline-none flex items-center justify-center gap-1 ${
                         leakCount > 0
                           ? 'bg-[#E06C75]/20 border-[#E06C75]/50 text-white shadow-[0_0_12px_rgba(224,108,117,0.15)] hover:bg-[#E06C75]/40 hover:border-[#E06C75]/80 hover:text-white hover:shadow-[0_0_16px_rgba(224,108,117,0.28)]'
                           : 'bg-white/5 border-white/10 text-slate-500 hover:bg-white/10 hover:text-slate-300'
@@ -5697,10 +5697,10 @@ export default function App() {
                   ACTIVE LEAK QUEUE
                 </span>
                 <span
-                  className={`px-2 py-0.5 rounded-full text-[11px] border ${
+                  className={`px-2 py-0.5 rounded-full text-[11px] ${
                     filteredLeaks.length > 0
-                      ? 'bg-[#E06C75]/15 border-[#E06C75]/40 text-[#E06C75] font-bold'
-                      : 'bg-white/5 border-white/10 text-slate-500 font-semibold'
+                      ? 'bg-[#E06C75]/30 border border-[#E06C75]/60 text-white font-bold'
+                      : 'bg-white/5 border border-white/10 text-slate-500 font-semibold'
                   }`}
                 >
                   {filteredLeaks.length}
@@ -5730,7 +5730,7 @@ export default function App() {
                     'All Matching Leaks'
                   )
                 }
-                className={`px-4 py-2 rounded-lg font-semibold text-xs border transition-all flex items-center gap-1.5 ${
+                className={`px-4 py-2 rounded-lg font-semibold text-xs border transition-colors duration-150 outline-none focus:outline-none flex items-center gap-1.5 ${
                   filteredLeaks.length > 0
                     ? 'bg-[#E06C75]/20 border-[#E06C75]/50 text-white shadow-[0_0_12px_rgba(224,108,117,0.15)] hover:bg-[#E06C75]/40 hover:border-[#E06C75]/80 hover:text-white hover:shadow-[0_0_16px_rgba(224,108,117,0.28)]'
                     : 'bg-white/5 border-white/10 text-slate-500 hover:bg-white/10 hover:text-slate-300'
@@ -5819,7 +5819,7 @@ export default function App() {
                           </td>
                           <td className="py-2.5 px-3">
                             {remainingCooldown === 0 ? (
-                              <span className="px-2 py-0.5 rounded bg-[#68B388]/15 text-[#68B388] border border-[#68B388]/30 font-bold text-[11px]">
+                              <span className="px-2 py-0.5 rounded bg-[#68B388]/15 text-white border border-[#68B388]/30 font-bold text-[11px]">
                                 Ready Now
                               </span>
                             ) : (
@@ -5857,6 +5857,59 @@ export default function App() {
           </div>
         </main>
       )}
+
+      {/* ====================================================================
+          SITE FOOTER ROW
+         ==================================================================== */}
+      <footer className="border-t border-white/5 bg-[#0B0D12]/90 mt-12 py-6 px-6 shrink-0">
+        <div className="max-w-[1600px] mx-auto flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-slate-400">
+          {/* Left Side: Brand Logo Badge + Title + Tagline */}
+          <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2.5">
+            <div className="w-7 h-7 rounded-lg bg-[#4F46E5] text-white flex items-center justify-center shadow-sm shadow-[#4F46E5]/25 shrink-0">
+              <Layers className="w-3.5 h-3.5 text-white stroke-[2.5]" />
+            </div>
+            <span className="font-bold text-sm text-white">RangeFlow</span>
+            <span className="hidden sm:inline text-slate-600">•</span>
+            <span className="text-slate-400">
+              GTO Preflop Range Constructor &amp; Spaced-Repetition Trainer
+            </span>
+          </div>
+
+          {/* Center / Contact Info */}
+          <div className="flex flex-wrap items-center justify-center gap-3 text-xs text-slate-400">
+            <a
+              href="mailto:support@rangeflow.app"
+              className="text-slate-300 hover:text-white transition-colors duration-150"
+            >
+              support@rangeflow.app
+            </a>
+            <span className="text-slate-600">•</span>
+            <span>© 2026 RangeFlow. All rights reserved.</span>
+          </div>
+
+          {/* Right Side: Golden Upgrade to PRO Pill Button or PRO MEMBER Badge */}
+          <div className="flex items-center">
+            {userTier === 'pro' || state.isPro ? (
+              <div className="bg-[#E5C17B]/20 hover:bg-[#E5C17B]/35 border border-[#E5C17B]/60 hover:border-[#E5C17B] text-white font-semibold rounded-full px-3.5 py-1.5 transition-colors flex items-center gap-1.5 shadow-[0_0_12px_rgba(229,193,123,0.15)] select-none">
+                <Crown className="w-3.5 h-3.5 text-[#E5C17B]" />
+                <span>PRO MEMBER</span>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => {
+                  setProModalReason('');
+                  setShowProModal(true);
+                }}
+                className="bg-[#E5C17B]/20 hover:bg-[#E5C17B]/35 border border-[#E5C17B]/60 hover:border-[#E5C17B] text-white font-semibold rounded-full px-3.5 py-1.5 transition-colors flex items-center gap-1.5 shadow-[0_0_12px_rgba(229,193,123,0.15)] outline-none focus:outline-none"
+              >
+                <Crown className="w-3.5 h-3.5 text-[#E5C17B]" />
+                <span>Upgrade to PRO</span>
+              </button>
+            )}
+          </div>
+        </div>
+      </footer>
 
       {/* ====================================================================
           SELECT TRAINING SPOTS RIGHT SLIDE-OVER DRAWER (V4)
@@ -5939,7 +5992,7 @@ export default function App() {
                       return (
                         <div
                           key={c.spotId}
-                          className={`group flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-semibold border transition-all cursor-pointer ${
+                          className={`group flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-semibold border transition-colors duration-150 outline-none focus:outline-none cursor-pointer ${
                             isSel
                               ? 'bg-[#6366F1]/15 border-[#818CF8]/50 text-[#EEF2FF] font-semibold shadow-[0_0_12px_rgba(99,102,241,0.12)]'
                               : 'bg-[#181D29] text-slate-200 border-[#232938] hover:border-slate-500'
@@ -5984,7 +6037,7 @@ export default function App() {
                       key={f.id}
                       type="button"
                       onClick={() => setDrawerFolderId(f.id)}
-                      className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all ${
+                      className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors duration-150 outline-none focus:outline-none ${
                         drawerFolderId === f.id
                           ? 'bg-[#6366F1]/15 border-[#818CF8]/50 text-[#EEF2FF] font-semibold shadow-[0_0_12px_rgba(99,102,241,0.12)]'
                           : 'bg-[#181D29] text-slate-300 border-[#232938]'
@@ -6007,7 +6060,7 @@ export default function App() {
                       key={p}
                       type="button"
                       onClick={() => setDrawerTableSize(p)}
-                      className={`px-2.5 py-1 rounded-md text-xs font-semibold border ${
+                      className={`px-2.5 py-1 rounded-md text-xs font-semibold border transition-colors duration-150 outline-none focus:outline-none ${
                         drawerTableSize === p
                           ? 'bg-[#6366F1]/15 border-[#818CF8]/50 text-[#EEF2FF] font-semibold shadow-[0_0_12px_rgba(99,102,241,0.12)]'
                           : 'bg-[#181D29] text-slate-300 border-[#232938]'
@@ -6022,7 +6075,7 @@ export default function App() {
                       key={s}
                       type="button"
                       onClick={() => setDrawerStackDepth(s)}
-                      className={`px-2.5 py-1 rounded-md text-xs font-semibold border ${
+                      className={`px-2.5 py-1 rounded-md text-xs font-semibold border transition-colors duration-150 outline-none focus:outline-none ${
                         drawerStackDepth === s
                           ? 'bg-[#6366F1]/15 border-[#818CF8]/50 text-[#EEF2FF] font-semibold shadow-[0_0_12px_rgba(99,102,241,0.12)]'
                           : 'bg-[#181D29] text-slate-300 border-[#232938]'
@@ -6116,7 +6169,7 @@ export default function App() {
                                     : [...prev, matchingChart.spotId]
                                 );
                               }}
-                              className={`px-2.5 py-1 rounded-md text-xs font-bold flex items-center gap-1 border transition-all ${
+                              className={`px-2.5 py-1 rounded-md text-xs font-bold flex items-center gap-1 border transition-colors duration-150 outline-none focus:outline-none ${
                                 !isPop
                                   ? 'bg-[#0B0D12]/50 text-slate-600 border-[#232938] cursor-not-allowed'
                                   : isSelected
@@ -6156,7 +6209,7 @@ export default function App() {
                                       : [...prev, c.spotId]
                                   )
                                 }
-                                className={`px-2 py-0.5 rounded text-[11px] font-semibold border transition-all ${
+                                className={`px-2 py-0.5 rounded text-[11px] font-semibold border transition-colors duration-150 outline-none focus:outline-none ${
                                   isSel
                                     ? 'bg-[#6366F1]/15 border-[#818CF8]/50 text-[#EEF2FF] font-semibold shadow-[0_0_12px_rgba(99,102,241,0.12)]'
                                     : 'bg-[#0B0D12] text-slate-300 border-[#232938]'
@@ -6278,11 +6331,11 @@ export default function App() {
                             }));
                           }
                         }}
-                        className={`px-3 py-1 rounded-lg text-xs font-semibold border transition-colors ${
+                        className={`px-3 py-1 rounded-lg text-xs font-semibold border transition-colors duration-150 outline-none focus:outline-none ${
                           isSmartBorderActive
                             ? 'bg-[#6366F1]/15 border-[#818CF8]/50 text-[#EEF2FF] font-semibold shadow-[0_0_12px_rgba(99,102,241,0.12)]'
                             : isOnlyInRangeActive
-                            ? 'bg-[#6366F1]/15 border-[#818CF8]/50 text-[#818CF8]'
+                            ? 'bg-[#6366F1]/15 border-[#818CF8]/50 text-white font-medium'
                             : 'bg-[#181D29] text-slate-300 border-[#232938] hover:border-slate-500'
                         }`}
                       >
@@ -6311,7 +6364,7 @@ export default function App() {
                             }));
                           }
                         }}
-                        className={`px-3 py-1 rounded-lg text-xs font-semibold border transition-colors ${
+                        className={`px-3 py-1 rounded-lg text-xs font-semibold border transition-colors duration-150 outline-none focus:outline-none ${
                           isAll169Active
                             ? 'bg-[#6366F1]/15 border-[#818CF8]/50 text-[#EEF2FF] font-semibold shadow-[0_0_12px_rgba(99,102,241,0.12)]'
                             : 'bg-[#181D29] text-slate-300 border-[#232938] hover:border-slate-500'
@@ -6323,11 +6376,11 @@ export default function App() {
 
                     {/* Two Distinct Color Legend Pills */}
                     <div className="flex items-center gap-2">
-                      <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-[#E06C75]/25 text-[#E06C75] border border-[#E06C75] flex items-center gap-1">
+                      <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-[#E06C75]/25 text-white border border-[#E06C75] flex items-center gap-1">
                         <span className="w-2 h-2 rounded-full bg-[#E06C75]" />
                         In Range (Painted)
                       </span>
-                      <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-[#6366F1]/20 text-[#818CF8] border border-[#818CF8]/60 flex items-center gap-1">
+                      <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-[#6366F1]/20 text-white border border-[#818CF8]/60 flex items-center gap-1">
                         <span className="w-2 h-2 rounded-full bg-[#818CF8]" />
                         Added Fold Hand
                       </span>
@@ -6593,7 +6646,7 @@ export default function App() {
             </div>
 
             {proModalReason && (
-              <div className="p-3 rounded-lg bg-[#6366F1]/15 border border-[#818CF8]/40 text-xs text-[#818CF8] font-medium">
+              <div className="p-3 rounded-lg bg-[#6366F1]/15 border border-[#818CF8]/40 text-xs text-white font-medium">
                 {proModalReason}
               </div>
             )}
@@ -6842,8 +6895,10 @@ function SupabaseAuthModal({
               setAuthTab('login');
               setFeedback(null);
             }}
-            className={`py-1.5 rounded-lg text-xs font-bold transition-colors ${
-              authTab === 'login' ? 'bg-[#181D29] text-white' : 'text-slate-400 hover:text-slate-200'
+            className={`py-1.5 rounded-lg text-xs font-bold border transition-colors duration-150 outline-none focus:outline-none ${
+              authTab === 'login'
+                ? 'bg-[#181D29] text-white border-white/10'
+                : 'border-transparent text-slate-400 hover:text-slate-200'
             }`}
           >
             Log In
@@ -6854,8 +6909,10 @@ function SupabaseAuthModal({
               setAuthTab('signup');
               setFeedback(null);
             }}
-            className={`py-1.5 rounded-lg text-xs font-bold transition-colors ${
-              authTab === 'signup' ? 'bg-[#181D29] text-white' : 'text-slate-400 hover:text-slate-200'
+            className={`py-1.5 rounded-lg text-xs font-bold border transition-colors duration-150 outline-none focus:outline-none ${
+              authTab === 'signup'
+                ? 'bg-[#181D29] text-white border-white/10'
+                : 'border-transparent text-slate-400 hover:text-slate-200'
             }`}
           >
             Sign Up
@@ -6863,7 +6920,7 @@ function SupabaseAuthModal({
         </div>
 
         {initialNotice && (
-          <div className="p-3 rounded-lg border bg-[#E5C07B]/15 border-[#E5C07B]/50 text-[#E5C07B] text-xs font-medium">
+          <div className="p-3 rounded-lg border bg-[#E5C07B]/15 border-[#E5C07B]/50 text-white text-xs font-medium">
             {initialNotice}
           </div>
         )}
@@ -6872,8 +6929,8 @@ function SupabaseAuthModal({
           <div
             className={`p-3 rounded-lg border text-xs font-medium ${
               feedback.type === 'error'
-                ? 'bg-[#3B181E]/60 border-[#E06C75] text-[#E06C75]'
-                : 'bg-[#143323]/60 border-[#68B388] text-[#68B388]'
+                ? 'bg-[#3B181E]/60 border-[#E06C75] text-white'
+                : 'bg-[#143323]/60 border-[#68B388] text-white'
             }`}
           >
             {feedback.text}
