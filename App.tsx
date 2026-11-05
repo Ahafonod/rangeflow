@@ -17,6 +17,9 @@ import {
   Target,
   ChevronDown,
   ChevronRight,
+  ArrowUp,
+  ArrowDown,
+  Star,
   Eye,
   RotateCcw,
   Copy,
@@ -44,7 +47,7 @@ const SUPABASE_URL = 'https://srrrrfaqkncrplothrrj.supabase.co';
 const SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_lCNWXgpMeLFuhgrSRtFe4A_IJA_Fiyk';
 
 // Replace this URL with your live Stripe or Lemon Squeezy Payment Link
-const CHECKOUT_BASE_URL = 'https://rangeflow.lemonsqueezy.com/checkout/buy/0a27b4ce-c89e-49eb-89d9-99c72db9949b';
+const CHECKOUT_BASE_URL = 'https://buy.stripe.com/YOUR_PAYMENT_LINK';
 
 const SUPABASE_SESSION_KEY = 'rangeflow_supabase_session_v4';
 
@@ -353,6 +356,8 @@ export interface ChartData {
   heroPos: string;
   villainPos: string;
   villainSize: string;
+  villainBetSize?: number;
+  heroOpenSize?: number;
   strategyMode: StrategyMode;
   actions: ChartAction[];
   rawHands: { [handKey: string]: { [actionId: string]: number } };
@@ -646,10 +651,27 @@ export interface TableFrame {
   stepDelayMs: number;
 }
 
+export function parseCustomBBValue(val?: string | number | null): number | undefined {
+  if (typeof val === 'number' && !isNaN(val) && val > 0) {
+    return Number(val.toFixed(2));
+  }
+  if (typeof val === 'string') {
+    const m = val.match(/[\d.]+/);
+    if (m) {
+      const parsed = parseFloat(m[0]);
+      if (!isNaN(parsed) && parsed > 0) {
+        return Number(parsed.toFixed(2));
+      }
+    }
+  }
+  return undefined;
+}
+
 export function buildPreflopFrames(
   situation: string,
   heroPos: string,
-  villainPos: string
+  villainPos: string,
+  chart?: Pick<ChartData, 'villainSize' | 'villainBetSize' | 'heroOpenSize' | 'actions'> | null
 ): TableFrame[] {
   const hIdx = Math.max(0, POS_ORDER.indexOf(heroPos as any));
   const vIdx = POS_ORDER.indexOf(villainPos as any);
@@ -657,6 +679,9 @@ export function buildPreflopFrames(
   const isRFI = situation.toLowerCase().includes('rfi') || situation.toLowerCase().includes('first in');
   const isVsOpen = situation.toLowerCase().includes('open') && !isRFI;
   const isVs3Bet = situation.toLowerCase().includes('3-bet') || situation.toLowerCase().includes('3bet');
+
+  const customVillainBet =
+    parseCustomBBValue(chart?.villainBetSize) ?? parseCustomBBValue(chart?.villainSize);
 
   let deadBlinds = 0;
 
@@ -748,8 +773,8 @@ export function buildPreflopFrames(
     for (let i = 0; i < safeVIdx; i++) {
       recordFold(i);
     }
-    // 2. At vIdx (Villain): Villain Opens to 2.5 BB (3.0 BB if SB)
-    const openSize = POS_ORDER[safeVIdx] === 'SB' ? 3.0 : 2.5;
+    // 2. At vIdx (Villain): Use chart's custom Villain open amount (fallback to 3.0 if SB or 2.5 otherwise)
+    const openSize = customVillainBet ?? (POS_ORDER[safeVIdx] === 'SB' ? 3.0 : 2.5);
     recordBetOrRaise(safeVIdx, openSize, `OPEN ${openSize} BB`);
     // 3. Clockwise from vIdx + 1 to hIdx - 1: Each player between Villain and Hero Folds one by one
     for (let i = safeVIdx + 1; i < hIdx; i++) {
@@ -767,16 +792,17 @@ export function buildPreflopFrames(
     for (let i = 0; i < hIdx; i++) {
       recordFold(i);
     }
-    // 2. At hIdx (Hero): Hero automatically Open Raises to 2.5 BB (3.0 BB if SB)
-    const heroOpenSize = POS_ORDER[hIdx] === 'SB' ? 3.0 : 2.5;
+    // 2. At hIdx (Hero): Hero Open Raises (uses custom heroOpenSize if set, otherwise 3.0 if SB or 2.5)
+    const heroOpenSize =
+      parseCustomBBValue(chart?.heroOpenSize) ?? (POS_ORDER[hIdx] === 'SB' ? 3.0 : 2.5);
     recordBetOrRaise(hIdx, heroOpenSize, `OPEN ${heroOpenSize} BB`);
     // 3. Clockwise from hIdx + 1 to vIdx - 1: Each player between Hero and Villain Folds one by one
     for (let i = hIdx + 1; i < safeVIdx; i++) {
       recordFold(i);
     }
-    // 4. At vIdx (Villain): Villain 3-Bets to 7.5 BB (10.0 BB if SB/BB)
+    // 4. At vIdx (Villain): Use chart's custom Villain 3-bet amount (fallback to 10.0 if SB/BB or 7.5 otherwise)
     const vPos = POS_ORDER[safeVIdx];
-    const villain3BetSize = vPos === 'SB' || vPos === 'BB' ? 10.0 : 7.5;
+    const villain3BetSize = customVillainBet ?? (vPos === 'SB' || vPos === 'BB' ? 10.0 : 7.5);
     recordBetOrRaise(safeVIdx, villain3BetSize, `3-BET ${villain3BetSize} BB`);
     // 5. Clockwise from vIdx + 1 to BB (5): Every remaining player after Villain Folds one by one
     for (let i = safeVIdx + 1; i < POS_ORDER.length; i++) {
@@ -793,14 +819,14 @@ export function buildPreflopFrames(
   for (let i = 0; i < safeVIdx; i++) {
     recordFold(i);
   }
-  // 2. At vIdx (Villain): Villain Opens to 2.5 BB
+  // 2. At vIdx (Villain): Villain Opens to 2.5 BB (3.0 BB if SB)
   const vOpenSize = POS_ORDER[safeVIdx] === 'SB' ? 3.0 : 2.5;
   recordBetOrRaise(safeVIdx, vOpenSize, `OPEN ${vOpenSize} BB`);
   // 3. Clockwise from vIdx + 1 to hIdx - 1: Each player between Villain and Hero Folds one by one
   for (let i = safeVIdx + 1; i < hIdx; i++) {
     recordFold(i);
   }
-  // 4. At hIdx (Hero): Hero automatically 3-Bets to 7.5 BB (10.0 BB if SB/BB)
+  // 4. At hIdx (Hero): Hero 3-Bets to 7.5 BB (10.0 BB if SB/BB)
   const hPos = POS_ORDER[hIdx];
   const hero3BetSize = hPos === 'SB' || hPos === 'BB' ? 10.0 : 7.5;
   recordBetOrRaise(hIdx, hero3BetSize, `3-BET ${hero3BetSize} BB`);
@@ -808,9 +834,10 @@ export function buildPreflopFrames(
   for (let i = hIdx + 1; i < POS_ORDER.length; i++) {
     recordFold(i);
   }
-  // 6. Action wraps back around to vIdx (Villain): Villain 4-Bets to 20.0 BB
-  recordBetOrRaise(safeVIdx, 20.0, '4-BET 20 BB');
-  // 7. Action returns to hIdx (Hero): Playback finishes, Hero's seat highlights with YOUR TURN while keeping Hero's 7.5 BB 3-bet chip
+  // 6. Action wraps back around to vIdx (Villain): Use chart's custom Villain 4-bet amount (fallback to 20.0 BB)
+  const villain4BetSize = customVillainBet ?? 20.0;
+  recordBetOrRaise(safeVIdx, villain4BetSize, `4-BET ${villain4BetSize} BB`);
+  // 7. Action returns to hIdx (Hero): Playback finishes, Hero's seat highlights with YOUR TURN
   recordHeroTurnReady('YOUR TURN');
   return frames;
 }
@@ -841,12 +868,17 @@ export function applyHeroDecisionToFrame(
     heroSeat.bet = 0;
     heroSeat.status = 'FOLD';
     heroSeat.dimmed = true;
-  } else if (actUpper.includes('CALL')) {
-    heroSeat.bet = maxVillainBet;
-    heroSeat.stack = Number((100 - maxVillainBet).toFixed(1));
-    heroSeat.status = `CALL ${maxVillainBet} BB`;
+  } else if (actUpper.includes('CALL') || actUpper.includes('LIMP')) {
+    const callAmount = isRFI
+      ? heroFinalAction.betSize && heroFinalAction.betSize > 0
+        ? heroFinalAction.betSize
+        : 1.0
+      : maxVillainBet;
+    heroSeat.bet = callAmount;
+    heroSeat.stack = Number((100 - callAmount).toFixed(1));
+    heroSeat.status = `CALL ${callAmount} BB`;
   } else {
-    const raiseTo = isRFI
+    const defaultRaiseTo = isRFI
       ? heroPos === 'SB'
         ? 3.0
         : 2.5
@@ -857,6 +889,10 @@ export function applyHeroDecisionToFrame(
       : isVs3Bet
       ? 20.0
       : 100.0;
+    const raiseTo =
+      heroFinalAction.betSize && heroFinalAction.betSize > 0
+        ? heroFinalAction.betSize
+        : defaultRaiseTo;
     heroSeat.bet = raiseTo;
     heroSeat.stack = Number((100 - raiseTo).toFixed(1));
     heroSeat.status = `${actUpper} ${raiseTo} BB`;
@@ -931,6 +967,7 @@ export function createDefaultChart(
   villainPos: string
 ): ChartData {
   const spotId = buildSpotId(folderId, tableSize, stackDepth, scenarioType, heroPos, villainPos);
+  const defVillainSize = getDefaultVillainSize(scenarioType);
   return {
     spotId,
     folderId,
@@ -939,7 +976,8 @@ export function createDefaultChart(
     scenarioType,
     heroPos,
     villainPos,
-    villainSize: getDefaultVillainSize(scenarioType),
+    villainSize: defVillainSize,
+    villainBetSize: parseCustomBBValue(defVillainSize),
     strategyMode: 'raw',
     actions: getDefaultActions(scenarioType),
     rawHands: {},
@@ -1618,6 +1656,45 @@ export default function App() {
     }
   }, [currentChart.actions, selectedActionId]);
 
+  // Reorder non-Fold actions in chart.actions (Move Up / Move Down / Set Primary)
+  const handleMoveAction = useCallback(
+    (actionId: string, direction: 'up' | 'down') => {
+      updateChart(currentSpotId, chart => {
+        const idx = chart.actions.findIndex(a => a.id === actionId);
+        if (idx < 0) return chart;
+        const targetIdx = direction === 'up' ? idx - 1 : idx + 1;
+        if (targetIdx < 0 || targetIdx >= chart.actions.length) return chart;
+        const nextActions = [...chart.actions];
+        const [moved] = nextActions.splice(idx, 1);
+        nextActions.splice(targetIdx, 0, moved);
+        return {
+          ...chart,
+          actions: nextActions
+        };
+      });
+    },
+    [currentSpotId, updateChart]
+  );
+
+  const handleSetPrimaryAction = useCallback(
+    (actionId: string) => {
+      updateChart(currentSpotId, chart => {
+        const idx = chart.actions.findIndex(a => a.id === actionId);
+        if (idx <= 0) return chart;
+        const nextActions = [...chart.actions];
+        const [moved] = nextActions.splice(idx, 1);
+        nextActions.unshift(moved);
+        return {
+          ...chart,
+          actions: nextActions
+        };
+      });
+      setSelectedActionId(actionId);
+      triggerToast('Updated Primary Action (Hotkey [1])');
+    },
+    [currentSpotId, updateChart, triggerToast]
+  );
+
   // Global mouseup to end drag painting (both main 13x13 grid and Training Hands mini-matrix)
   useEffect(() => {
     const handleMouseUp = () => {
@@ -1927,6 +2004,11 @@ export default function App() {
   const [editingVillainSize, setEditingVillainSize] = useState<boolean>(false);
   const [villainSizeInput, setVillainSizeInput] = useState<string>(currentChart.villainSize);
 
+  useEffect(() => {
+    setVillainSizeInput(currentChart.villainSize);
+    setEditingVillainSize(false);
+  }, [currentSpotId, currentChart.villainSize]);
+
   const [showAddActionModal, setShowAddActionModal] = useState<boolean>(false);
   const [editingActionId, setEditingActionId] = useState<string | null>(null);
   const [actionFormName, setActionFormName] = useState<string>('Raise');
@@ -1979,12 +2061,10 @@ export default function App() {
             validPos.villainPos
           );
         const updatedChart = updater(base);
-        const nextCharts = { ...prev.charts };
-        if (isChartPopulated(updatedChart)) {
-          nextCharts[spotId] = updatedChart;
-        } else {
-          delete nextCharts[spotId];
-        }
+        const nextCharts = {
+          ...prev.charts,
+          [spotId]: updatedChart
+        };
         const nextLeaks = { ...prev.leaks };
         for (const hk of editedHandKeys) {
           delete nextLeaks[`${spotId}__${hk}`];
@@ -2421,7 +2501,8 @@ export default function App() {
       const handFrames = buildPreflopFrames(
         chosenChart.scenarioType,
         chosenChart.heroPos,
-        chosenChart.villainPos
+        chosenChart.villainPos,
+        chosenChart
       );
 
       setActiveTrainedChart(chosenChart);
@@ -2453,6 +2534,23 @@ export default function App() {
       triggerToast
     ]
   );
+
+  // Keep activeTrainedChart and preflop frames synced if user edits chart sizing or action order in Editor
+  useEffect(() => {
+    if (!activeTrainedChart) return;
+    const latest = state.charts[activeTrainedChart.spotId];
+    if (latest && latest !== activeTrainedChart) {
+      setActiveTrainedChart(latest);
+      const updatedFrames = buildPreflopFrames(
+        latest.scenarioType,
+        latest.heroPos,
+        latest.villainPos,
+        latest
+      );
+      setFrames(updatedFrames);
+      setFrameIdx(prev => Math.min(prev, Math.max(0, updatedFrames.length - 1)));
+    }
+  }, [state.charts, activeTrainedChart]);
 
   // Step-by-Step Preflop Action Playback Timer (180ms for folds, 260ms for raises)
   useEffect(() => {
@@ -2517,10 +2615,13 @@ export default function App() {
       const chosenWeight = chosenActionId === 'FOLD' ? foldWeight : (cell[chosenActionId] || 0);
       const isCorrect = chosenActionId === expectedActionId || chosenWeight >= 100;
 
-      // Immediately update Hero's seat badge & bet chip via getSeatStatesForSpot(situation, heroPos, villainPos, heroFinalAction)
+      // Immediately update Hero's seat badge & bet chip using Hero's custom action size or name
+      const customHeroActionBet = chosenActObj
+        ? parseCustomBBValue(chosenActObj.size) ?? parseCustomBBValue(chosenActObj.name) ?? parseNumericBB(chosenActObj.size)
+        : 0;
       setHeroFinalAction({
         label: chosenActObj ? chosenActObj.name : 'FOLD',
-        betSize: chosenActObj ? parseNumericBB(chosenActObj.size) : 0
+        betSize: customHeroActionBet
       });
 
       const leakKey = `${activeTrainedChart.spotId}__${dealtHandKey}`;
@@ -3784,28 +3885,90 @@ export default function App() {
                         <input
                           type="text"
                           value={villainSizeInput}
-                          onChange={e => setVillainSizeInput(e.target.value)}
-                          onKeyDown={e => {
-                            if (e.key === 'Enter') {
+                          onChange={e => {
+                            const val = e.target.value;
+                            setVillainSizeInput(val);
+                            const numericBB = parseCustomBBValue(val);
+                            if (numericBB !== undefined) {
+                              const formattedSize = val.trim().toLowerCase().endsWith('bb')
+                                ? val.trim()
+                                : `${numericBB}bb`;
                               updateChart(currentSpotId, c => ({
                                 ...c,
-                                villainSize: villainSizeInput.trim() || c.villainSize
+                                villainSize: formattedSize,
+                                villainBetSize: numericBB,
+                                actions: c.actions.map(a =>
+                                  a.name.toLowerCase().includes('call')
+                                    ? { ...a, size: formattedSize }
+                                    : a
+                                )
                               }));
+                            }
+                          }}
+                          onBlur={() => {
+                            const numericBB = parseCustomBBValue(villainSizeInput);
+                            if (numericBB !== undefined) {
+                              const formattedSize = villainSizeInput.trim().toLowerCase().endsWith('bb')
+                                ? villainSizeInput.trim()
+                                : `${numericBB}bb`;
+                              updateChart(currentSpotId, c => ({
+                                ...c,
+                                villainSize: formattedSize,
+                                villainBetSize: numericBB,
+                                actions: c.actions.map(a =>
+                                  a.name.toLowerCase().includes('call')
+                                    ? { ...a, size: formattedSize }
+                                    : a
+                                )
+                              }));
+                            }
+                            setEditingVillainSize(false);
+                          }}
+                          onKeyDown={e => {
+                            if (e.key === 'Enter') {
+                              const numericBB = parseCustomBBValue(villainSizeInput);
+                              if (numericBB !== undefined) {
+                                const formattedSize = villainSizeInput.trim().toLowerCase().endsWith('bb')
+                                  ? villainSizeInput.trim()
+                                  : `${numericBB}bb`;
+                                updateChart(currentSpotId, c => ({
+                                  ...c,
+                                  villainSize: formattedSize,
+                                  villainBetSize: numericBB,
+                                  actions: c.actions.map(a =>
+                                    a.name.toLowerCase().includes('call')
+                                      ? { ...a, size: formattedSize }
+                                      : a
+                                  )
+                                }));
+                              }
                               setEditingVillainSize(false);
                             } else if (e.key === 'Escape') {
                               setEditingVillainSize(false);
                             }
                           }}
-                          className="w-14 bg-[#0B0D12] px-1.5 py-0.5 rounded text-xs text-white border border-[#E06C75] focus:outline-none"
+                          className="w-16 bg-[#0B0D12] px-1.5 py-0.5 rounded text-xs text-white border border-[#E06C75] focus:outline-none"
                           autoFocus
                         />
                         <button
                           type="button"
                           onClick={() => {
-                            updateChart(currentSpotId, c => ({
-                              ...c,
-                              villainSize: villainSizeInput.trim() || c.villainSize
-                            }));
+                            const numericBB = parseCustomBBValue(villainSizeInput);
+                            if (numericBB !== undefined) {
+                              const formattedSize = villainSizeInput.trim().toLowerCase().endsWith('bb')
+                                ? villainSizeInput.trim()
+                                : `${numericBB}bb`;
+                              updateChart(currentSpotId, c => ({
+                                ...c,
+                                villainSize: formattedSize,
+                                villainBetSize: numericBB,
+                                actions: c.actions.map(a =>
+                                  a.name.toLowerCase().includes('call')
+                                    ? { ...a, size: formattedSize }
+                                    : a
+                                )
+                              }));
+                            }
                             setEditingVillainSize(false);
                           }}
                           className="text-[#68B388]"
@@ -4344,10 +4507,11 @@ export default function App() {
                   </button>
                 </div>
 
-                {/* Full-Width Stacked Action Bars */}
+                {/* Full-Width Stacked Action Bars (Reorderable with Primary Action Control) */}
                 <div className="flex flex-col gap-2">
-                  {currentChart.actions.map(action => {
+                  {currentChart.actions.map((action, actionIdx) => {
                     const isSelected = selectedActionId === action.id;
+                    const isPrimary = actionIdx === 0;
                     const combos = chartStats.actionCombos[action.id] || 0;
                     const pct = (combos / 1326) * 100;
 
@@ -4355,18 +4519,79 @@ export default function App() {
                       <div
                         key={action.id}
                         onClick={() => setSelectedActionId(action.id)}
-                        className={`group rounded-lg p-2.5 flex items-center justify-between transition-all cursor-pointer border ${
+                        className={`group rounded-lg p-2.5 flex flex-wrap items-center justify-between gap-2 transition-all cursor-pointer border ${
                           isSelected
                             ? 'bg-[#181D29] border-[#E06C75] shadow-sm ring-1 ring-white/15'
                             : 'bg-[#181D29]/70 border-[#232938] hover:border-slate-600'
                         }`}
                       >
-                        <div className="flex items-center gap-2.5">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          {/* Reorder Up/Down Controls */}
+                          {currentChart.actions.length > 1 && (
+                            <div
+                              className="flex flex-col -my-1"
+                              onClick={e => e.stopPropagation()}
+                            >
+                              <button
+                                type="button"
+                                disabled={actionIdx === 0}
+                                title="Move Action Up (Earlier Bar & Hotkey)"
+                                onClick={() => handleMoveAction(action.id, 'up')}
+                                className={`p-0.5 rounded transition-colors ${
+                                  actionIdx === 0
+                                    ? 'text-slate-700 cursor-not-allowed'
+                                    : 'text-slate-400 hover:text-white hover:bg-[#232938]'
+                                }`}
+                              >
+                                <ArrowUp className="w-3 h-3" />
+                              </button>
+                              <button
+                                type="button"
+                                disabled={actionIdx === currentChart.actions.length - 1}
+                                title="Move Action Down (Later Bar & Hotkey)"
+                                onClick={() => handleMoveAction(action.id, 'down')}
+                                className={`p-0.5 rounded transition-colors ${
+                                  actionIdx === currentChart.actions.length - 1
+                                    ? 'text-slate-700 cursor-not-allowed'
+                                    : 'text-slate-400 hover:text-white hover:bg-[#232938]'
+                                }`}
+                              >
+                                <ArrowDown className="w-3 h-3" />
+                              </button>
+                            </div>
+                          )}
+
+                          <span
+                            className="px-1.5 py-0.5 rounded bg-[#0B0D12] border border-[#232938] text-[10px] font-mono font-bold text-slate-400"
+                            title={`Bound to Trainer Hotkey [${actionIdx + 1}]`}
+                          >
+                            [{actionIdx + 1}]
+                          </span>
+
                           <span
                             className="w-4 h-4 rounded shadow-sm shrink-0 border border-white/20"
                             style={{ backgroundColor: action.color }}
                           />
                           <span className="text-xs font-bold text-white">{action.name}</span>
+
+                          {isPrimary ? (
+                            <span className="px-1.5 py-0.5 rounded text-[9px] font-extrabold uppercase tracking-wider bg-[#E06C75]/20 text-[#E06C75] border border-[#E06C75]/40">
+                              PRIMARY
+                            </span>
+                          ) : (
+                            <button
+                              type="button"
+                              title="Make Primary Action (First Bar Segment & Hotkey [1])"
+                              onClick={e => {
+                                e.stopPropagation();
+                                handleSetPrimaryAction(action.id);
+                              }}
+                              className="px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider bg-[#0B0D12] hover:bg-[#E06C75] text-slate-400 hover:text-[#0B0D12] border border-[#232938] hover:border-[#E06C75] transition-colors flex items-center gap-0.5"
+                            >
+                              <Star className="w-2.5 h-2.5" />
+                              <span>Set Primary</span>
+                            </button>
+                          )}
 
                           {/* Inline clickable Sizing Input */}
                           <input
@@ -4745,7 +4970,8 @@ export default function App() {
                       : buildPreflopFrames(
                           activeTrainedChart.scenarioType,
                           activeTrainedChart.heroPos,
-                          activeTrainedChart.villainPos
+                          activeTrainedChart.villainPos,
+                          activeTrainedChart
                         );
                   const clampedIdx = Math.min(frameIdx, activeFrames.length - 1);
                   const baseFrame = activeFrames[clampedIdx] || activeFrames[activeFrames.length - 1];
