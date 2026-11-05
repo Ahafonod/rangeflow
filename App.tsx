@@ -3357,15 +3357,15 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen bg-[#0B0D12] text-[#E6EDF3] font-sans selection:bg-[#C4B5FD]/30 selection:text-white flex flex-col">
+    <div className="min-h-screen bg-[#0B0D12] text-[#E6EDF3] font-sans selection:bg-[#6366F1]/30 selection:text-white flex flex-col">
       {/* ====================================================================
           TOP NAVIGATION HEADER
          ==================================================================== */}
       <header className="h-14 bg-[#12161F] border-b border-[#232938] px-4 flex items-center justify-between shrink-0 z-30">
         {/* Left: Coral emblem + clean RangeFlow branding */}
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-lg bg-[#C4B5FD] text-[#0B0D12] flex items-center justify-center shadow-md shadow-[#C4B5FD]/20">
-            <Layers className="w-4 h-4 text-[#0B0D12] stroke-[2.5]" />
+          <div className="w-8 h-8 rounded-lg bg-[#4F46E5] hover:bg-[#6366F1] text-white flex items-center justify-center shadow-sm shadow-[#4F46E5]/25">
+            <Layers className="w-4 h-4 text-white stroke-[2.5]" />
           </div>
           <div className="flex items-center gap-2">
             <span className="font-bold tracking-tight text-lg text-white">RangeFlow</span>
@@ -3383,7 +3383,7 @@ export default function App() {
                 : 'text-slate-400 hover:text-slate-200'
             }`}
           >
-            <Sliders className="w-3.5 h-3.5 text-[#C4B5FD]" />
+            <Sliders className="w-3.5 h-3.5 text-[#818CF8]" />
             <span>Charts (Editor)</span>
           </button>
 
@@ -3490,7 +3490,7 @@ export default function App() {
               }}
               className="px-3 py-1.5 rounded-lg bg-[#181D29] hover:bg-[#232938] border border-[#232938] text-xs font-semibold text-slate-200 hover:text-white flex items-center gap-1.5 transition-colors"
             >
-              <LogIn className="w-3.5 h-3.5 text-[#C4B5FD]" />
+              <LogIn className="w-3.5 h-3.5 text-[#818CF8]" />
               <span>Sign In</span>
             </button>
           )}
@@ -3517,7 +3517,7 @@ export default function App() {
                   return (
                     <div
                       key={folder.id}
-                      className="flex items-center gap-1 bg-[#181D29] border border-[#C4B5FD] rounded-lg px-2 py-1"
+                      className="flex items-center gap-1 bg-[#181D29] border border-[#818CF8]/60 rounded-lg px-2 py-1"
                     >
                       <input
                         type="text"
@@ -3565,12 +3565,12 @@ export default function App() {
                     key={folder.id}
                     className={`group flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer border ${
                       isActive
-                        ? 'bg-[#C4B5FD] text-[#0B0D12] font-semibold border border-[#C4B5FD] shadow-sm'
+                        ? 'bg-[#6366F1]/15 border border-[#818CF8]/50 text-[#EEF2FF] font-semibold shadow-[0_0_12px_rgba(99,102,241,0.12)]'
                         : 'bg-[#181D29] text-slate-300 border-[#232938] hover:border-slate-600'
                     }`}
                     onClick={() => setState(prev => ({ ...prev, activeFolderId: folder.id }))}
                   >
-                    <Folder className={`w-3.5 h-3.5 ${isActive ? 'text-[#C4B5FD]' : 'text-slate-400'}`} />
+                    <Folder className={`w-3.5 h-3.5 ${isActive ? 'text-[#818CF8]' : 'text-slate-400'}`} />
                     <span>{folder.name}</span>
                     <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity ml-1">
                       <button
@@ -3602,7 +3602,7 @@ export default function App() {
               })}
 
               {addingFolder ? (
-                <div className="flex items-center gap-1 bg-[#181D29] border border-[#C4B5FD] rounded-lg px-2 py-1">
+                <div className="flex items-center gap-1 bg-[#181D29] border border-[#818CF8]/60 rounded-lg px-2 py-1">
                   <input
                     type="text"
                     placeholder="Folder name"
@@ -3636,7 +3636,7 @@ export default function App() {
                   onClick={() => setAddingFolder(true)}
                   className="px-2.5 py-1.5 rounded-lg bg-[#181D29] hover:bg-[#232938] border border-dashed border-slate-600 text-xs font-medium text-slate-300 flex items-center gap-1.5 transition-colors"
                 >
-                  <Plus className="w-4 h-4 text-[#C4B5FD]" />
+                  <Plus className="w-4 h-4 text-[#818CF8]" />
                   <span>New Folder</span>
                 </button>
               )}
@@ -3649,11 +3649,11 @@ export default function App() {
                 onClick={() => setShowAllChartsBrowser(prev => !prev)}
                 className={`px-3 py-1.5 rounded-lg border text-xs font-semibold flex items-center gap-1.5 transition-colors ${
                   showAllChartsBrowser
-                    ? 'bg-[#C4B5FD] text-[#0B0D12] font-semibold border border-[#C4B5FD] shadow-sm'
+                    ? 'bg-[#6366F1]/15 border border-[#818CF8]/50 text-[#EEF2FF] font-semibold shadow-[0_0_12px_rgba(99,102,241,0.12)]'
                     : 'bg-[#181D29] hover:bg-[#232938] border-[#232938] text-slate-200'
                 }`}
               >
-                <Layers className="w-3.5 h-3.5 text-[#C4B5FD]" />
+                <Layers className="w-3.5 h-3.5 text-[#818CF8]" />
                 <span>All Charts ({allPopulatedCharts.length})</span>
                 {showAllChartsBrowser ? (
                   <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
@@ -3677,7 +3677,7 @@ export default function App() {
             <div className="bg-[#12161F] border border-[#232938] rounded-xl p-3.5 flex flex-col gap-3">
               <div className="flex items-center justify-between border-b border-[#232938] pb-2">
                 <div className="flex items-center gap-2">
-                  <Layers className="w-4 h-4 text-[#C4B5FD]" />
+                  <Layers className="w-4 h-4 text-[#818CF8]" />
                   <span className="text-xs font-bold uppercase tracking-wider text-white">
                     All Saved Charts Browser ({allPopulatedCharts.length} total)
                   </span>
@@ -3706,7 +3706,7 @@ export default function App() {
                       <div key={folder.id} className="bg-[#0B0D12] border border-[#232938] rounded-lg p-2.5 flex flex-col gap-2">
                         <div className="flex items-center justify-between">
                           <span className="text-xs font-bold text-slate-200 flex items-center gap-1.5">
-                            <Folder className="w-3.5 h-3.5 text-[#C4B5FD]" />
+                            <Folder className="w-3.5 h-3.5 text-[#818CF8]" />
                             <span>{folder.name}</span>
                             <span className="text-[11px] text-slate-400">({folderCharts.length})</span>
                           </span>
@@ -3729,7 +3729,7 @@ export default function App() {
                                   onClick={() => handleJumpToSavedChart(c)}
                                   className={`group px-2.5 py-2 rounded-lg border text-xs flex items-center justify-between gap-2 cursor-pointer transition-all ${
                                     isCurrent
-                                      ? 'bg-[#C4B5FD]/15 border-[#C4B5FD] text-white'
+                                      ? 'bg-[#6366F1]/15 border border-[#818CF8]/50 text-[#EEF2FF] shadow-[0_0_12px_rgba(99,102,241,0.12)]'
                                       : 'bg-[#181D29] border-[#232938] text-slate-200 hover:border-slate-500'
                                   }`}
                                 >
@@ -3785,7 +3785,7 @@ export default function App() {
                                 onClick={() => handleJumpToSavedChart(c)}
                                 className={`group px-2.5 py-2 rounded-lg border text-xs flex items-center justify-between gap-2 cursor-pointer transition-all ${
                                   isCurrent
-                                    ? 'bg-[#C4B5FD]/15 border-[#C4B5FD] text-white'
+                                    ? 'bg-[#6366F1]/15 border border-[#818CF8]/50 text-[#EEF2FF] shadow-[0_0_12px_rgba(99,102,241,0.12)]'
                                     : 'bg-[#181D29] border-[#232938] text-slate-200 hover:border-slate-500'
                                 }`}
                               >
@@ -3830,7 +3830,7 @@ export default function App() {
                     onClick={() => setState(prev => ({ ...prev, activeTableSize: p }))}
                     className={`group px-2.5 py-1 rounded-md text-xs font-semibold transition-all cursor-pointer flex items-center gap-1 ${
                       state.activeTableSize === p
-                        ? 'bg-[#C4B5FD] text-[#0B0D12] font-semibold border border-[#C4B5FD] shadow-sm'
+                        ? 'bg-[#6366F1]/15 border border-[#818CF8]/50 text-[#EEF2FF] font-semibold shadow-[0_0_12px_rgba(99,102,241,0.12)]'
                         : 'bg-[#181D29] text-slate-300 hover:bg-[#232938] border border-[#232938]'
                     }`}
                   >
@@ -3844,7 +3844,7 @@ export default function App() {
                           handleDeletePlayerOption(p);
                         }}
                         className={`opacity-0 group-hover:opacity-100 transition-opacity ml-0.5 rounded hover:bg-black/20 ${
-                          state.activeTableSize === p ? 'text-[#0B0D12]' : 'text-slate-400 hover:text-[#E06C75]'
+                          state.activeTableSize === p ? 'text-[#EEF2FF]' : 'text-slate-400 hover:text-[#E06C75]'
                         }`}
                       >
                         <X className="w-3 h-3" />
@@ -3853,7 +3853,7 @@ export default function App() {
                   </div>
                 ))}
                 {addingPlayer ? (
-                  <div className="flex items-center gap-1 bg-[#181D29] border border-[#C4B5FD] rounded-md px-2 py-0.5">
+                  <div className="flex items-center gap-1 bg-[#181D29] border border-[#818CF8]/60 rounded-md px-2 py-0.5">
                     <input
                       type="number"
                       min={2}
@@ -3896,7 +3896,7 @@ export default function App() {
                     onClick={() => setState(prev => ({ ...prev, activeStackDepth: s }))}
                     className={`group px-2.5 py-1 rounded-md text-xs font-semibold transition-all cursor-pointer flex items-center gap-1 ${
                       state.activeStackDepth === s
-                        ? 'bg-[#C4B5FD] text-[#0B0D12] font-semibold border border-[#C4B5FD] shadow-sm'
+                        ? 'bg-[#6366F1]/15 border border-[#818CF8]/50 text-[#EEF2FF] font-semibold shadow-[0_0_12px_rgba(99,102,241,0.12)]'
                         : 'bg-[#181D29] text-slate-300 hover:bg-[#232938] border border-[#232938]'
                     }`}
                   >
@@ -3910,7 +3910,7 @@ export default function App() {
                           handleDeleteStackOption(s);
                         }}
                         className={`opacity-0 group-hover:opacity-100 transition-opacity ml-0.5 rounded hover:bg-black/20 ${
-                          state.activeStackDepth === s ? 'text-[#0B0D12]' : 'text-slate-400 hover:text-[#E06C75]'
+                          state.activeStackDepth === s ? 'text-[#EEF2FF]' : 'text-slate-400 hover:text-[#E06C75]'
                         }`}
                       >
                         <X className="w-3 h-3" />
@@ -3919,7 +3919,7 @@ export default function App() {
                   </div>
                 ))}
                 {addingStack ? (
-                  <div className="flex items-center gap-1 bg-[#181D29] border border-[#C4B5FD] rounded-md px-2 py-0.5">
+                  <div className="flex items-center gap-1 bg-[#181D29] border border-[#818CF8]/60 rounded-md px-2 py-0.5">
                     <input
                       type="number"
                       min={5}
@@ -3963,7 +3963,7 @@ export default function App() {
                     onClick={() => setState(prev => ({ ...prev, activeScenario: scen }))}
                     className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all border ${
                       state.activeScenario === scen
-                        ? 'bg-[#C4B5FD] text-[#0B0D12] font-semibold border border-[#C4B5FD] shadow-sm'
+                        ? 'bg-[#6366F1]/15 border border-[#818CF8]/50 text-[#EEF2FF] font-semibold shadow-[0_0_12px_rgba(99,102,241,0.12)]'
                         : 'bg-[#0B0D12] text-slate-400 border-[#232938] hover:text-slate-200'
                     }`}
                   >
@@ -3992,7 +3992,7 @@ export default function App() {
                         saveVillainBetSize(e.currentTarget.value);
                         setEditingVillainSize(false);
                       }}
-                      className="w-16 bg-[#0B0D12] px-1.5 py-0.5 rounded text-xs font-bold text-[#E5C07B] border border-[#232938] focus:border-[#C4B5FD] focus:outline-none text-center"
+                      className="w-16 bg-[#0B0D12] px-1.5 py-0.5 rounded text-xs font-bold text-[#E5C07B] border border-[#232938] focus:border-[#818CF8] focus:outline-none text-center"
                     />
                   </div>
                 )}
@@ -4000,7 +4000,7 @@ export default function App() {
                 <button
                   type="button"
                   onClick={handleTrainCurrentSpot}
-                  className="px-3.5 py-1.5 rounded-lg bg-[#181D29] hover:bg-[#C4B5FD] text-[#C4B5FD] hover:text-[#0B0D12] border border-[#C4B5FD]/50 font-bold text-xs shadow-sm transition-all flex items-center gap-1.5"
+                  className="px-3.5 py-1.5 rounded-lg bg-[#4F46E5] hover:bg-[#6366F1] text-white font-bold text-xs shadow-sm shadow-[#4F46E5]/25 transition-all flex items-center gap-1.5"
                 >
                   <Play className="w-3.5 h-3.5 fill-current" />
                   <span>Train This Spot</span>
@@ -4025,7 +4025,7 @@ export default function App() {
                       1. Hero Position
                     </span>
                     {addingPosition ? (
-                      <div className="flex items-center gap-1 bg-[#181D29] border border-[#C4B5FD] rounded px-1.5 py-0.5">
+                      <div className="flex items-center gap-1 bg-[#181D29] border border-[#818CF8]/60 rounded px-1.5 py-0.5">
                         <input
                           type="text"
                           placeholder="POS"
@@ -4096,7 +4096,7 @@ export default function App() {
                             isDisabled
                               ? 'bg-[#0B0D12]/50 text-slate-600 border-[#232938]/50 cursor-not-allowed'
                               : isHero
-                              ? 'bg-[#C4B5FD] text-[#0B0D12] font-semibold border-[#C4B5FD] shadow-sm cursor-pointer'
+                              ? 'bg-[#6366F1]/15 border-[#818CF8]/50 text-[#EEF2FF] font-semibold shadow-[0_0_12px_rgba(99,102,241,0.12)] cursor-pointer'
                               : 'bg-[#181D29] text-slate-200 border-[#232938] hover:border-slate-500 cursor-pointer'
                           }`}
                         >
@@ -4104,7 +4104,7 @@ export default function App() {
                           {hasPainted && (
                             <span
                               className={`text-sm leading-none ${
-                                isHero ? 'text-[#0B0D12]' : 'text-[#68B388]'
+                                isHero ? 'text-[#818CF8]' : 'text-[#68B388]'
                               }`}
                             >
                               •
@@ -4119,7 +4119,7 @@ export default function App() {
                                 handleDeletePosition(seat);
                               }}
                               className={`absolute right-1 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity p-0.5 rounded hover:bg-black/20 ${
-                                isHero ? 'text-[#0B0D12]' : 'text-slate-400 hover:text-[#E06C75]'
+                                isHero ? 'text-[#EEF2FF]' : 'text-slate-400 hover:text-[#E06C75]'
                               }`}
                             >
                               <X className="w-3 h-3" />
@@ -4145,7 +4145,7 @@ export default function App() {
                         return (
                           <div
                             key={seat}
-                            className="h-7 rounded-md bg-[#C4B5FD]/15 border border-[#C4B5FD]/40 text-[#C4B5FD] text-[11px] font-bold flex items-center justify-center"
+                            className="h-7 rounded-md bg-[#6366F1]/15 border border-[#818CF8]/60/40 text-[#818CF8] text-[11px] font-bold flex items-center justify-center"
                           >
                             HERO
                           </div>
@@ -4216,7 +4216,7 @@ export default function App() {
                         return (
                           <div
                             key={seat}
-                            className="h-7 rounded-md bg-[#C4B5FD]/15 border border-[#C4B5FD]/40 text-[#C4B5FD] text-[11px] font-bold flex items-center justify-center"
+                            className="h-7 rounded-md bg-[#6366F1]/15 border border-[#818CF8]/60/40 text-[#818CF8] text-[11px] font-bold flex items-center justify-center"
                           >
                             HERO
                           </div>
@@ -4323,7 +4323,7 @@ export default function App() {
                       }}
                       className={`px-2.5 py-1 rounded-md text-xs font-semibold transition-all flex items-center gap-1.5 ${
                         currentChart.strategyMode === 'pure' && (userTier === 'pro' || state.isPro)
-                          ? 'bg-[#C4B5FD] text-[#0B0D12] font-semibold border border-[#C4B5FD] shadow-sm'
+                          ? 'bg-[#6366F1]/15 border border-[#818CF8]/50 text-[#EEF2FF] font-semibold shadow-[0_0_12px_rgba(99,102,241,0.12)]'
                           : 'text-slate-400 hover:text-slate-200'
                       }`}
                     >
@@ -4344,7 +4344,7 @@ export default function App() {
                     : 'Hover any hand cell for exact combo breakdown, or click/drag to paint.'}
                 </span>
                 <span className="font-semibold text-slate-200">
-                  Playable: <span className="text-[#C4B5FD]">{chartStats.playablePct.toFixed(1)}%</span> ({Math.round(chartStats.playableCombos)} combos)
+                  Playable: <span className="text-[#818CF8]">{chartStats.playablePct.toFixed(1)}%</span> ({Math.round(chartStats.playableCombos)} combos)
                 </span>
               </div>
 
@@ -4506,7 +4506,7 @@ export default function App() {
                       setActionFormColor(STUDIO_SWATCHES[currentChart.actions.length % STUDIO_SWATCHES.length]);
                       setShowAddActionModal(true);
                     }}
-                    className="px-2.5 py-1 rounded-lg bg-[#181D29] hover:bg-[#232938] border border-[#232938] text-xs font-semibold text-[#C4B5FD] transition-colors"
+                    className="px-2.5 py-1 rounded-lg bg-[#181D29] hover:bg-[#232938] border border-[#232938] text-xs font-semibold text-[#818CF8] transition-colors"
                   >
                     + Add Action
                   </button>
@@ -4559,10 +4559,10 @@ export default function App() {
                         onClick={() => setSelectedActionId(action.id)}
                         className={`group rounded-lg p-2.5 flex items-center justify-between transition-all cursor-pointer border ${
                           isSelected
-                            ? 'bg-[#181D29] border-[#C4B5FD] shadow-sm ring-1 ring-white/15'
+                            ? 'bg-[#181D29] border-[#818CF8]/60 shadow-sm ring-1 ring-[#6366F1]/50'
                             : 'bg-[#181D29]/70 border-[#232938] hover:border-slate-600'
                         } ${draggedActionId === action.id ? 'opacity-50' : ''} ${
-                          dragOverActionId === action.id ? 'ring-2 ring-[#C4B5FD]' : ''
+                          dragOverActionId === action.id ? 'ring-2 ring-[#6366F1]/50 border-[#818CF8]/60' : ''
                         }`}
                       >
                         <div className="flex items-center gap-2.5">
@@ -4590,7 +4590,7 @@ export default function App() {
                                   actions: c.actions.map(a => (a.id === action.id ? { ...a, size: val } : a))
                                 }));
                               }}
-                              className="w-16 bg-[#0B0D12] border border-[#232938] focus:border-[#C4B5FD] rounded px-1.5 py-0.5 text-[11px] font-semibold text-slate-200 focus:outline-none"
+                              className="w-16 bg-[#0B0D12] border border-[#232938] focus:border-[#818CF8] rounded px-1.5 py-0.5 text-[11px] font-semibold text-slate-200 focus:outline-none"
                             />
                           )}
 
@@ -4651,7 +4651,7 @@ export default function App() {
                 <div className="pt-2 border-t border-[#232938] flex flex-col gap-2">
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-semibold text-slate-300">
-                      Brush Weight: <strong className="text-[#C4B5FD]">{brushWeight}%</strong>
+                      Brush Weight: <strong className="text-[#818CF8]">{brushWeight}%</strong>
                     </span>
                     <div className="flex items-center gap-1">
                       {[25, 50, 75, 100].map(preset => (
@@ -4661,7 +4661,7 @@ export default function App() {
                           onClick={() => setBrushWeight(preset)}
                           className={`px-2 py-0.5 rounded text-[11px] font-bold transition-colors ${
                             brushWeight === preset
-                              ? 'bg-[#C4B5FD]/15 border-[#C4B5FD] text-white'
+                              ? 'bg-[#6366F1]/15 border border-[#818CF8]/50 text-[#EEF2FF] shadow-[0_0_12px_rgba(99,102,241,0.12)]'
                               : 'bg-[#181D29] text-slate-300 hover:bg-[#232938] border border-[#232938]'
                           }`}
                         >
@@ -4676,7 +4676,7 @@ export default function App() {
                     max={100}
                     value={brushWeight}
                     onChange={e => setBrushWeight(parseInt(e.target.value, 10))}
-                    className="w-full accent-[#C4B5FD] cursor-pointer h-1.5 bg-[#181D29] rounded-lg"
+                    className="w-full accent-[#6366F1] cursor-pointer h-1.5 bg-[#181D29] rounded-lg"
                   />
                 </div>
               </div>
@@ -4730,14 +4730,14 @@ export default function App() {
                         onClick={() => handleBucketClick(bucket)}
                         className={`relative rounded-lg p-2.5 bg-[#181D29] border transition-all cursor-pointer select-none flex flex-col gap-1 ${
                           isHovered
-                            ? 'border-[#C4B5FD] shadow-md bg-[#1C2230]'
+                            ? 'border-[#818CF8]/60 shadow-md bg-[#1C2230]'
                             : 'border-[#232938] hover:border-slate-600'
                         }`}
                       >
                         {/* Floating Tooltip above bucket on hover showing exact hands */}
                         {isHovered && (
-                          <div className="absolute bottom-full left-0 right-0 mb-1.5 p-2 rounded-lg bg-[#0B0D12] border border-[#C4B5FD] shadow-xl z-30 pointer-events-none">
-                            <div className="text-[10px] font-bold text-[#C4B5FD] mb-0.5">
+                          <div className="absolute bottom-full left-0 right-0 mb-1.5 p-2 rounded-lg bg-[#0B0D12] border border-[#818CF8]/60 shadow-xl z-30 pointer-events-none">
+                            <div className="text-[10px] font-bold text-[#818CF8] mb-0.5">
                               {bucket.title} ({bucket.hands.length} hands)
                             </div>
                             <div className="text-[10px] text-slate-200 leading-relaxed break-words">
@@ -4751,7 +4751,7 @@ export default function App() {
                           <span
                             className={`px-1.5 py-0.5 rounded text-[10px] font-bold shrink-0 ${
                               paintedCount > 0
-                                ? 'bg-[#C4B5FD]/20 text-[#C4B5FD] border border-[#C4B5FD]/40'
+                                ? 'bg-[#6366F1]/20 text-[#818CF8] border border-[#818CF8]/60/40'
                                 : 'bg-[#0B0D12] text-slate-400 border border-[#232938]'
                             }`}
                           >
@@ -4788,7 +4788,7 @@ export default function App() {
                   setDrawerStackDepth(state.activeStackDepth);
                   setShowSpotSelectorDrawer(true);
                 }}
-                className="px-3.5 py-1.5 rounded-lg bg-[#181D29] hover:bg-[#232938] border border-[#C4B5FD]/50 text-xs font-bold text-white flex items-center gap-1.5 transition-colors"
+                className="px-3.5 py-1.5 rounded-lg bg-[#181D29] hover:bg-[#232938] border border-[#818CF8]/60/50 text-xs font-bold text-white flex items-center gap-1.5 transition-colors"
               >
                 <span>▽ Select Spots ({selectedTrainerSpots.filter(id => isChartPopulated(state.charts[id])).length})</span>
               </button>
@@ -4850,7 +4850,7 @@ export default function App() {
                     onClick={() => setTrainerSpeed(spd)}
                     className={`px-2.5 py-1 rounded-md text-xs font-semibold transition-all ${
                       trainerSpeed === spd
-                        ? 'bg-[#C4B5FD] text-[#0B0D12] font-semibold border border-[#C4B5FD] shadow-sm'
+                        ? 'bg-[#6366F1]/15 border border-[#818CF8]/50 text-[#EEF2FF] font-semibold shadow-[0_0_12px_rgba(99,102,241,0.12)]'
                         : 'text-slate-400 hover:text-slate-200'
                     }`}
                   >
@@ -4862,7 +4862,7 @@ export default function App() {
               {userTier !== 'pro' && !state.isPro && (
                 <div className="px-3 py-1.5 rounded-lg bg-[#181D29] border border-[#232938] text-xs font-semibold text-slate-300">
                   Daily Hands:{' '}
-                  <strong className="text-[#C4B5FD]">
+                  <strong className="text-[#818CF8]">
                     {(state.dailyHands?.date === getTodayDateString()
                       ? state.dailyHands.count
                       : state.dailyHandsDate === getTodayDateString()
@@ -4900,7 +4900,7 @@ export default function App() {
           <div className="flex-1 bg-[#12161F] border border-[#232938] rounded-2xl p-6 flex flex-col justify-between relative min-h-[540px] overflow-hidden">
             {!activeTrainedChart || trainerPhase === 'IDLE' ? (
               <div className="m-auto max-w-md text-center flex flex-col items-center gap-4 py-12">
-                <div className="w-14 h-14 rounded-2xl bg-[#181D29] border border-[#232938] flex items-center justify-center text-[#C4B5FD]">
+                <div className="w-14 h-14 rounded-2xl bg-[#181D29] border border-[#232938] flex items-center justify-center text-[#818CF8]">
                   <Play className="w-7 h-7" />
                 </div>
                 <h3 className="text-lg font-bold text-white">Ready to Train Your Ranges</h3>
@@ -4911,7 +4911,7 @@ export default function App() {
                   <button
                     type="button"
                     onClick={() => setShowSpotSelectorDrawer(true)}
-                    className="px-4 py-2 rounded-lg bg-[#C4B5FD] hover:bg-[#A78BFA] text-[#0B0D12] font-bold text-xs transition-colors"
+                    className="px-4 py-2 rounded-lg bg-[#4F46E5] hover:bg-[#6366F1] text-white shadow-sm shadow-[#4F46E5]/25 font-bold text-xs transition-colors"
                   >
                     ▽ Open Spot Selector
                   </button>
@@ -4943,7 +4943,7 @@ export default function App() {
                     onMouseLeave={() => setIsPeekHeld(false)}
                     className="px-3 py-1.5 rounded-lg bg-[#181D29] hover:bg-[#232938] border border-[#232938] text-xs font-semibold text-slate-200 flex items-center gap-1.5 select-none"
                   >
-                    <Eye className="w-3.5 h-3.5 text-[#C4B5FD]" />
+                    <Eye className="w-3.5 h-3.5 text-[#818CF8]" />
                     <span>Hold to Peek Chart [Tab]</span>
                   </button>
                 </div>
@@ -5064,10 +5064,10 @@ export default function App() {
                                 className={`px-3 py-1 rounded-xl border text-center min-w-[92px] shadow-lg transition-all duration-150 ${
                                   seatObj.isActingNow
                                     ? isHeroSeat
-                                      ? 'bg-[#181D29] border-[#C4B5FD] text-white ring-2 ring-[#C4B5FD] shadow-[0_0_16px_rgba(196,181,253,0.45)]'
+                                      ? 'bg-[#181D29] border-[#818CF8]/60 text-white ring-2 ring-[#6366F1]/50 shadow-[0_0_16px_rgba(99,102,241,0.35)]'
                                       : 'bg-[#181D29] border-[#E5C07B] text-white ring-2 ring-[#E5C07B] shadow-[0_0_16px_rgba(229,192,123,0.45)]'
                                     : isHeroSeat
-                                    ? 'bg-[#181D29] border-[#C4B5FD]/70 text-white'
+                                    ? 'bg-[#181D29] border-[#818CF8]/60/70 text-white'
                                     : seatObj.isVillain && seatObj.bet > 1
                                     ? 'bg-[#181D29] border-[#E5C07B]/80 text-white'
                                     : seatObj.dimmed
@@ -5078,7 +5078,7 @@ export default function App() {
                                 <div className="text-[11px] font-extrabold tracking-wide flex items-center justify-center gap-1">
                                   <span>{seatObj.pos}</span>
                                   {isHeroSeat && (
-                                    <span className="text-[9px] bg-[#C4B5FD] text-[#0B0D12] px-1 rounded font-black">
+                                    <span className="text-[9px] bg-[#6366F1] text-white px-1 rounded font-black">
                                       HERO
                                     </span>
                                   )}
@@ -5092,11 +5092,11 @@ export default function App() {
                                       seatObj.status === 'FOLD'
                                         ? 'bg-slate-800/90 text-slate-300'
                                         : seatObj.status.startsWith('YOUR TURN')
-                                        ? 'bg-[#C4B5FD] text-[#0B0D12]'
+                                        ? 'bg-[#6366F1] text-white'
                                         : seatObj.isVillain && seatObj.bet > 1
                                         ? 'bg-[#E5C07B]/20 text-[#E5C07B] border border-[#E5C07B]/40'
                                         : isHeroSeat && seatObj.bet > 1
-                                        ? 'bg-[#C4B5FD]/20 text-[#C4B5FD] border border-[#C4B5FD]/40'
+                                        ? 'bg-[#6366F1]/20 text-[#818CF8] border border-[#818CF8]/60/40'
                                         : 'bg-[#181D29] text-slate-300 border border-[#232938]'
                                     }`}
                                   >
@@ -5110,7 +5110,7 @@ export default function App() {
                             {seatObj.bet > 0 && (
                               isHeroSeat ? (
                                 <div className="absolute bottom-[118px] left-1/2 -translate-x-1/2 z-20 transition-all duration-150 pointer-events-none">
-                                  <div className="px-2.5 py-0.5 rounded-full font-extrabold text-[11px] shadow-lg border bg-[#C4B5FD] text-[#0B0D12] border-white/50 whitespace-nowrap flex items-center gap-1">
+                                  <div className="px-2.5 py-0.5 rounded-full font-extrabold text-[11px] shadow-lg border bg-[#6366F1] text-white border-white/50 whitespace-nowrap flex items-center gap-1">
                                     <span className="w-2 h-2 rounded-full bg-current opacity-40" />
                                     <span>{seatObj.bet} BB</span>
                                   </div>
@@ -5194,7 +5194,7 @@ export default function App() {
                 >
                   <div className="px-3.5 py-3 rounded-xl bg-[#1C202B] border border-[#262C3A] text-xs font-mono font-bold text-slate-200 select-none flex items-center gap-1.5">
                     <span className="text-slate-400">RNG</span>
-                    <span className="text-[#C4B5FD] tabular-nums">{rngRoll}</span>
+                    <span className="text-[#818CF8] tabular-nums">{rngRoll}</span>
                   </div>
 
                   <button
@@ -5248,7 +5248,7 @@ export default function App() {
                 {/* Peek Chart Overlay when holding Tab or button */}
                 {isPeekHeld && (
                   <div className="absolute inset-0 bg-[#0B0D12]/90 backdrop-blur-sm z-30 flex items-center justify-center p-6">
-                    <div className="bg-[#12161F] border border-[#C4B5FD] rounded-xl p-4 max-w-xl w-full shadow-2xl">
+                    <div className="bg-[#12161F] border border-[#818CF8]/60 rounded-xl p-4 max-w-xl w-full shadow-2xl">
                       <div className="flex items-center justify-between mb-2">
                         <span className="text-xs font-bold text-white">
                           Peek Chart: {formatSpotTitle(activeTrainedChart)}
@@ -5348,7 +5348,7 @@ export default function App() {
                 onClick={() => setLeaksFolderFilter('ALL')}
                 className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all border ${
                   leaksFolderFilter === 'ALL'
-                    ? 'bg-[#C4B5FD] text-[#0B0D12] font-semibold border-[#C4B5FD]'
+                    ? 'bg-[#6366F1]/15 border-[#818CF8]/50 text-[#EEF2FF] font-semibold shadow-[0_0_12px_rgba(99,102,241,0.12)]'
                     : 'bg-[#181D29] text-slate-300 border-[#232938] hover:border-slate-500'
                 }`}
               >
@@ -5361,7 +5361,7 @@ export default function App() {
                   onClick={() => setLeaksFolderFilter(f.id)}
                   className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all border ${
                     leaksFolderFilter === f.id
-                      ? 'bg-[#C4B5FD] text-[#0B0D12] font-semibold border-[#C4B5FD]'
+                      ? 'bg-[#6366F1]/15 border-[#818CF8]/50 text-[#EEF2FF] font-semibold shadow-[0_0_12px_rgba(99,102,241,0.12)]'
                       : 'bg-[#181D29] text-slate-300 border-[#232938] hover:border-slate-500'
                   }`}
                 >
@@ -5392,7 +5392,7 @@ export default function App() {
                   onClick={() => setLeaksScenarioFilter(isSelectedScen ? 'ALL' : scen)}
                   className={`bg-[#12161F] rounded-xl p-4 border transition-all cursor-pointer flex flex-col justify-between gap-3 ${
                     isSelectedScen
-                      ? 'border-[#C4B5FD] ring-1 ring-[#C4B5FD]/40'
+                      ? 'border-[#818CF8]/60 ring-1 ring-[#6366F1]/50/40'
                       : 'border-[#232938] hover:border-slate-600'
                   }`}
                 >
@@ -5454,7 +5454,7 @@ export default function App() {
                 <button
                   type="button"
                   onClick={() => setLeaksPositionFilter('ALL')}
-                  className="text-xs text-[#C4B5FD] hover:underline"
+                  className="text-xs text-[#818CF8] hover:underline"
                 >
                   Clear Position Filter ({leaksPositionFilter})
                 </button>
@@ -5478,7 +5478,7 @@ export default function App() {
                     key={pos}
                     onClick={() => setLeaksPositionFilter(isSelectedPos ? 'ALL' : pos)}
                     className={`rounded-xl p-3 bg-[#181D29] border transition-all cursor-pointer flex flex-col justify-between gap-2 ${
-                      isSelectedPos ? 'border-[#C4B5FD]' : 'border-[#232938] hover:border-slate-600'
+                      isSelectedPos ? 'border-[#818CF8]/60' : 'border-[#232938] hover:border-slate-600'
                     }`}
                   >
                     <div className="flex items-center justify-between">
@@ -5708,7 +5708,7 @@ export default function App() {
                     setShowSpotSelectorDrawer(false);
                     dealNextTrainerHand([currentSpotId], false, null);
                   }}
-                  className="shrink-0 px-3 py-1.5 rounded-lg bg-[#C4B5FD] hover:bg-[#A78BFA] text-[#0B0D12] font-bold text-xs transition-colors"
+                  className="shrink-0 px-3 py-1.5 rounded-lg bg-[#4F46E5] hover:bg-[#6366F1] text-white shadow-sm shadow-[#4F46E5]/25 font-bold text-xs transition-colors"
                 >
                   Select Only Current Editor Chart
                 </button>
@@ -5742,7 +5742,7 @@ export default function App() {
                           key={c.spotId}
                           className={`group flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-semibold border transition-all cursor-pointer ${
                             isSel
-                              ? 'bg-[#C4B5FD] text-[#0B0D12] font-semibold border-[#C4B5FD]'
+                              ? 'bg-[#6366F1]/15 border-[#818CF8]/50 text-[#EEF2FF] font-semibold shadow-[0_0_12px_rgba(99,102,241,0.12)]'
                               : 'bg-[#181D29] text-slate-200 border-[#232938] hover:border-slate-500'
                           }`}
                           onClick={() =>
@@ -5762,7 +5762,7 @@ export default function App() {
                               handleDeleteSavedChart(c.spotId, `${formatSpotTitle(c)} • ${c.stackDepth} BB`);
                             }}
                             className={`p-0.5 rounded hover:bg-black/20 ${
-                              isSel ? 'text-[#0B0D12]' : 'text-slate-400 hover:text-[#E06C75]'
+                              isSel ? 'text-[#EEF2FF]' : 'text-slate-400 hover:text-[#E06C75]'
                             }`}
                           >
                             <Trash2 className="w-3 h-3" />
@@ -5787,7 +5787,7 @@ export default function App() {
                       onClick={() => setDrawerFolderId(f.id)}
                       className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all ${
                         drawerFolderId === f.id
-                          ? 'bg-[#C4B5FD] text-[#0B0D12] font-semibold border-[#C4B5FD]'
+                          ? 'bg-[#6366F1]/15 border-[#818CF8]/50 text-[#EEF2FF] font-semibold shadow-[0_0_12px_rgba(99,102,241,0.12)]'
                           : 'bg-[#181D29] text-slate-300 border-[#232938]'
                       }`}
                     >
@@ -5810,7 +5810,7 @@ export default function App() {
                       onClick={() => setDrawerTableSize(p)}
                       className={`px-2.5 py-1 rounded-md text-xs font-semibold border ${
                         drawerTableSize === p
-                          ? 'bg-[#C4B5FD] text-[#0B0D12] font-semibold border-[#C4B5FD]'
+                          ? 'bg-[#6366F1]/15 border-[#818CF8]/50 text-[#EEF2FF] font-semibold shadow-[0_0_12px_rgba(99,102,241,0.12)]'
                           : 'bg-[#181D29] text-slate-300 border-[#232938]'
                       }`}
                     >
@@ -5825,7 +5825,7 @@ export default function App() {
                       onClick={() => setDrawerStackDepth(s)}
                       className={`px-2.5 py-1 rounded-md text-xs font-semibold border ${
                         drawerStackDepth === s
-                          ? 'bg-[#C4B5FD] text-[#0B0D12] font-semibold border-[#C4B5FD]'
+                          ? 'bg-[#6366F1]/15 border-[#818CF8]/50 text-[#EEF2FF] font-semibold shadow-[0_0_12px_rgba(99,102,241,0.12)]'
                           : 'bg-[#181D29] text-slate-300 border-[#232938]'
                       }`}
                     >
@@ -5915,7 +5915,7 @@ export default function App() {
                                 !isPop
                                   ? 'bg-[#0B0D12]/50 text-slate-600 border-[#232938] cursor-not-allowed'
                                   : isSelected
-                                  ? 'bg-[#C4B5FD] text-[#0B0D12] font-semibold border-[#C4B5FD]'
+                                  ? 'bg-[#6366F1]/15 border-[#818CF8]/50 text-[#EEF2FF] font-semibold shadow-[0_0_12px_rgba(99,102,241,0.12)]'
                                   : 'bg-[#12161F] text-slate-200 border-slate-600 hover:border-white'
                               }`}
                             >
@@ -5953,7 +5953,7 @@ export default function App() {
                                 }
                                 className={`px-2 py-0.5 rounded text-[11px] font-semibold border transition-all ${
                                   isSel
-                                    ? 'bg-[#C4B5FD] text-[#0B0D12] font-semibold border-[#C4B5FD]'
+                                    ? 'bg-[#6366F1]/15 border-[#818CF8]/50 text-[#EEF2FF] font-semibold shadow-[0_0_12px_rgba(99,102,241,0.12)]'
                                     : 'bg-[#0B0D12] text-slate-300 border-[#232938]'
                                 }`}
                               >
@@ -5983,7 +5983,7 @@ export default function App() {
                   setIsLeakTrainingMode(false);
                   dealNextTrainerHand(selectedTrainerSpots, false, null);
                 }}
-                className="px-4 py-2 rounded-lg bg-[#C4B5FD] hover:bg-[#A78BFA] text-[#0B0D12] font-bold text-xs transition-colors"
+                className="px-4 py-2 rounded-lg bg-[#4F46E5] hover:bg-[#6366F1] text-white shadow-sm shadow-[#4F46E5]/25 font-bold text-xs transition-colors"
               >
                 Start Training Selected Spots
               </button>
@@ -6075,9 +6075,9 @@ export default function App() {
                         }}
                         className={`px-3 py-1 rounded-lg text-xs font-semibold border transition-colors ${
                           isSmartBorderActive
-                            ? 'bg-[#C4B5FD] text-[#0B0D12] font-semibold border-[#C4B5FD]'
+                            ? 'bg-[#6366F1]/15 border-[#818CF8]/50 text-[#EEF2FF] font-semibold shadow-[0_0_12px_rgba(99,102,241,0.12)]'
                             : isOnlyInRangeActive
-                            ? 'bg-[#C4B5FD]/20 text-[#C4B5FD] border-[#C4B5FD]'
+                            ? 'bg-[#6366F1]/15 border-[#818CF8]/50 text-[#818CF8]'
                             : 'bg-[#181D29] text-slate-300 border-[#232938] hover:border-slate-500'
                         }`}
                       >
@@ -6108,7 +6108,7 @@ export default function App() {
                         }}
                         className={`px-3 py-1 rounded-lg text-xs font-semibold border transition-colors ${
                           isAll169Active
-                            ? 'bg-[#C4B5FD] text-[#0B0D12] font-semibold border-[#C4B5FD]'
+                            ? 'bg-[#6366F1]/15 border-[#818CF8]/50 text-[#EEF2FF] font-semibold shadow-[0_0_12px_rgba(99,102,241,0.12)]'
                             : 'bg-[#181D29] text-slate-300 border-[#232938] hover:border-slate-500'
                         }`}
                       >
@@ -6122,8 +6122,8 @@ export default function App() {
                         <span className="w-2 h-2 rounded-full bg-[#E06C75]" />
                         In Range (Painted)
                       </span>
-                      <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-[#C4B5FD]/25 text-[#C4B5FD] border border-[#C4B5FD] flex items-center gap-1">
-                        <span className="w-2 h-2 rounded-full bg-[#C4B5FD]" />
+                      <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-[#6366F1]/20 text-[#818CF8] border border-[#818CF8]/60 flex items-center gap-1">
+                        <span className="w-2 h-2 rounded-full bg-[#818CF8]" />
                         Added Fold Hand
                       </span>
                     </div>
@@ -6157,8 +6157,8 @@ export default function App() {
                           className={`aspect-square rounded-[7px] text-[9px] font-bold border flex items-center justify-center select-none cursor-pointer transition-colors ${
                             isIncluded
                               ? isInPaintedRange
-                                ? 'bg-[#E06C75] text-[#0B0D12] border-[#C4B5FD]'
-                                : 'bg-[#C4B5FD] text-[#0B0D12] border-[#C4B5FD]'
+                                ? 'bg-[#E06C75] text-[#0B0D12] border-[#818CF8]/60 ring-1 ring-[#6366F1]/50'
+                                : 'bg-[#6366F1]/25 text-[#EEF2FF] border-[#818CF8]/60 ring-1 ring-[#6366F1]/50'
                               : 'bg-[#14171F] opacity-40 text-slate-400 border-[#232938]'
                           }`}
                         >
@@ -6175,7 +6175,7 @@ export default function App() {
               <button
                 type="button"
                 onClick={() => setShowTrainingHandsDrawer(false)}
-                className="px-4 py-1.5 rounded-lg bg-[#A78BFA] hover:bg-[#C4B5FD] text-white font-bold text-xs shadow-sm shadow-[#A78BFA]/25"
+                className="px-4 py-1.5 rounded-lg bg-[#4F46E5] hover:bg-[#6366F1] text-white font-bold text-xs shadow-sm shadow-[#4F46E5]/25"
               >
                 Done
               </button>
@@ -6198,7 +6198,7 @@ export default function App() {
           >
             <div className="flex items-center justify-between pb-3 border-b border-[#232938]">
               <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                <History className="w-4 h-4 text-[#C4B5FD]" />
+                <History className="w-4 h-4 text-[#818CF8]" />
                 <span>Recent Session Hands ({state.history.length})</span>
               </h3>
               <button
@@ -6302,7 +6302,7 @@ export default function App() {
                   type="text"
                   value={actionFormName}
                   onChange={e => setActionFormName(e.target.value)}
-                  className="w-full bg-[#0B0D12] border border-[#232938] rounded-lg px-3 py-1.5 text-xs text-white focus:border-[#C4B5FD] focus:outline-none"
+                  className="w-full bg-[#0B0D12] border border-[#232938] rounded-lg px-3 py-1.5 text-xs text-white focus:border-[#818CF8] focus:outline-none"
                 />
               </div>
               <div>
@@ -6311,7 +6311,7 @@ export default function App() {
                   type="text"
                   value={actionFormSize}
                   onChange={e => setActionFormSize(e.target.value)}
-                  className="w-full bg-[#0B0D12] border border-[#232938] rounded-lg px-3 py-1.5 text-xs text-white focus:border-[#C4B5FD] focus:outline-none"
+                  className="w-full bg-[#0B0D12] border border-[#232938] rounded-lg px-3 py-1.5 text-xs text-white focus:border-[#818CF8] focus:outline-none"
                 />
               </div>
             </div>
@@ -6348,7 +6348,7 @@ export default function App() {
               <button
                 type="button"
                 onClick={handleSaveActionModal}
-                className="px-4 py-1.5 rounded-lg bg-[#A78BFA] hover:bg-[#C4B5FD] text-white text-xs font-bold shadow-sm shadow-[#A78BFA]/25"
+                className="px-4 py-1.5 rounded-lg bg-[#4F46E5] hover:bg-[#6366F1] text-white text-xs font-bold shadow-sm shadow-[#4F46E5]/25"
               >
                 Save Action
               </button>
@@ -6384,7 +6384,7 @@ export default function App() {
             </div>
 
             {proModalReason && (
-              <div className="p-3 rounded-lg bg-[#C4B5FD]/15 border border-[#C4B5FD]/40 text-xs text-[#C4B5FD] font-medium">
+              <div className="p-3 rounded-lg bg-[#6366F1]/15 border border-[#818CF8]/60/40 text-xs text-[#818CF8] font-medium">
                 {proModalReason}
               </div>
             )}
@@ -6527,8 +6527,8 @@ export default function App() {
 
       {/* Toast Notification */}
       {toast && (
-        <div className="fixed bottom-4 right-4 bg-[#181D29] border border-[#C4B5FD] text-white px-4 py-2.5 rounded-xl shadow-2xl text-xs font-semibold z-50 flex items-center gap-2">
-          <Sparkles className="w-4 h-4 text-[#C4B5FD]" />
+        <div className="fixed bottom-4 right-4 bg-[#181D29] border border-[#818CF8]/60 text-white px-4 py-2.5 rounded-xl shadow-2xl text-xs font-semibold z-50 flex items-center gap-2">
+          <Sparkles className="w-4 h-4 text-[#818CF8]" />
           <span>{toast}</span>
         </div>
       )}
@@ -6682,7 +6682,7 @@ function SupabaseAuthModal({
               value={email}
               onChange={e => setEmail(e.target.value)}
               placeholder="you@example.com"
-              className="w-full bg-[#0B0D12] border border-[#232938] focus:border-[#C4B5FD] rounded-lg px-3 py-2 text-xs text-white focus:outline-none"
+              className="w-full bg-[#0B0D12] border border-[#232938] focus:border-[#818CF8] rounded-lg px-3 py-2 text-xs text-white focus:outline-none"
             />
           </div>
 
@@ -6696,14 +6696,14 @@ function SupabaseAuthModal({
               value={password}
               onChange={e => setPassword(e.target.value)}
               placeholder="••••••••"
-              className="w-full bg-[#0B0D12] border border-[#232938] focus:border-[#C4B5FD] rounded-lg px-3 py-2 text-xs text-white focus:outline-none"
+              className="w-full bg-[#0B0D12] border border-[#232938] focus:border-[#818CF8] rounded-lg px-3 py-2 text-xs text-white focus:outline-none"
             />
           </div>
 
           <button
             type="submit"
             disabled={loading}
-            className="mt-1 w-full py-2.5 rounded-lg bg-[#C4B5FD] hover:bg-[#A78BFA] text-[#0B0D12] text-xs font-bold flex items-center justify-center gap-1.5 transition-colors"
+            className="mt-1 w-full py-2.5 rounded-lg bg-[#4F46E5] hover:bg-[#6366F1] text-white shadow-sm shadow-[#4F46E5]/25 text-xs font-bold flex items-center justify-center gap-1.5 transition-colors"
           >
             <LogIn className="w-3.5 h-3.5" />
             <span>
