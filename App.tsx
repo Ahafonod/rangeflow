@@ -3077,30 +3077,93 @@ export default function App() {
               ? remainingFolders
               : [{ id: 'my-own-charts', name: 'My Own Charts' }];
 
-          const nextActiveId = finalFolders.some(f => f.id === prev.activeFolderId)
-            ? prev.activeFolderId
-            : finalFolders[0].id;
+          const validFolderIds = new Set(finalFolders.map(f => f.id));
 
+          // Cascade delete all charts belonging to the deleted folder (never leave orphaned ranges)
           const nextCharts: { [spotId: string]: ChartData } = {};
           for (const [k, v] of Object.entries(prev.charts)) {
-            if (v.folderId !== folder.id) nextCharts[k] = v;
+            if (v.folderId !== folder.id && !k.startsWith(`${folder.id}__`) && validFolderIds.has(v.folderId)) {
+              nextCharts[k] = v;
+            }
           }
 
+          // Clean up any leak entries belonging to deleted charts
           const nextLeaks: { [leakKey: string]: LeakEntry } = {};
           for (const [k, v] of Object.entries(prev.leaks)) {
-            if (v.folderId !== folder.id) nextLeaks[k] = v;
+            if (v.folderId !== folder.id && nextCharts[v.spotId] && isChartPopulated(nextCharts[v.spotId])) {
+              nextLeaks[k] = v;
+            }
           }
 
-          return {
+          // Smoothly fall back if the currently active chart was inside the deleted folder
+          const wasActiveInDeletedFolder = prev.activeFolderId === folder.id;
+          let nextActiveId = finalFolders.some(f => f.id === prev.activeFolderId)
+            ? prev.activeFolderId
+            : finalFolders[0].id;
+          let nextTableSize = prev.activeTableSize;
+          let nextStackDepth = prev.activeStackDepth;
+          let nextScenario = prev.activeScenario;
+          let nextHeroPos = prev.activeHeroPos;
+          let nextVillainPos = prev.activeVillainPos;
+          let nextPositions = prev.activePositions;
+
+          if (wasActiveInDeletedFolder) {
+            const remainingPopulated = Object.values(nextCharts).filter(isChartPopulated);
+            const fallbackChart =
+              remainingPopulated.find(c => c.folderId === nextActiveId) ||
+              remainingPopulated[0] ||
+              null;
+            if (fallbackChart) {
+              nextActiveId = fallbackChart.folderId;
+              nextTableSize = fallbackChart.tableSize;
+              nextStackDepth = fallbackChart.stackDepth;
+              nextScenario = fallbackChart.scenarioType;
+              nextHeroPos = fallbackChart.heroPos;
+              nextVillainPos = fallbackChart.villainPos;
+              nextPositions = getSeatsForTableSize(fallbackChart.tableSize);
+            }
+          }
+
+          const nextState: StudioState = {
             ...prev,
             folders: finalFolders,
             activeFolderId: nextActiveId,
+            activeTableSize: nextTableSize,
+            activeStackDepth: nextStackDepth,
+            activeScenario: nextScenario,
+            activeHeroPos: nextHeroPos,
+            activeVillainPos: nextVillainPos,
+            activePositions: nextPositions,
             charts: nextCharts,
             leaks: nextLeaks
           };
+
+          stateChartsRef.current = nextCharts;
+          try {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(nextState));
+          } catch {
+            // Ignore storage errors
+          }
+          if (authUser) {
+            if (syncTimeoutRef.current !== null) {
+              window.clearTimeout(syncTimeoutRef.current);
+            }
+            pushToCloud(nextState, authUser, false);
+          }
+
+          setSelectedTrainerSpots(prevSpots => prevSpots.filter(id => Boolean(nextCharts[id])));
+          if (activeTrainedChart && !nextCharts[activeTrainedChart.spotId]) {
+            setActiveTrainedChart(null);
+            setTrainerPhase('IDLE');
+          }
+          if (drawerFolderId === folder.id) {
+            setDrawerFolderId(nextActiveId);
+          }
+
+          return nextState;
         });
         setConfirmModal(null);
-        triggerToast(`Deleted folder "${folder.name}"`);
+        triggerToast(`Deleted folder "${folder.name}" and its charts`);
       }
     });
   };
@@ -3150,14 +3213,96 @@ export default function App() {
         return prev;
       }
       const next = prev.stackOptions.filter(s => s !== stackToRemove);
-      const nextActive = prev.activeStackDepth === stackToRemove ? next[0] : prev.activeStackDepth;
-      return {
+      const validStacks = new Set(next.map(Number));
+
+      // Cascade delete all charts belonging to the deleted stack size
+      const nextCharts: { [spotId: string]: ChartData } = {};
+      for (const [k, v] of Object.entries(prev.charts)) {
+        if (Number(v.stackDepth) !== Number(stackToRemove) && validStacks.has(Number(v.stackDepth))) {
+          nextCharts[k] = v;
+        }
+      }
+
+      // Clean up any leak entries belonging to deleted charts
+      const nextLeaks: { [leakKey: string]: LeakEntry } = {};
+      for (const [k, v] of Object.entries(prev.leaks)) {
+        if (nextCharts[v.spotId] && isChartPopulated(nextCharts[v.spotId])) {
+          nextLeaks[k] = v;
+        }
+      }
+
+      // Smoothly fall back if the currently active chart was inside the deleted stack group
+      const wasActiveInDeletedStack = Number(prev.activeStackDepth) === Number(stackToRemove);
+      let nextActiveStack = wasActiveInDeletedStack ? next[0] : prev.activeStackDepth;
+      let nextFolderId = prev.activeFolderId;
+      let nextTableSize = prev.activeTableSize;
+      let nextScenario = prev.activeScenario;
+      let nextHeroPos = prev.activeHeroPos;
+      let nextVillainPos = prev.activeVillainPos;
+      let nextPositions = prev.activePositions;
+
+      if (wasActiveInDeletedStack) {
+        const remainingPopulated = Object.values(nextCharts).filter(isChartPopulated);
+        const fallbackChart =
+          remainingPopulated.find(
+            c => c.folderId === prev.activeFolderId && c.tableSize === prev.activeTableSize
+          ) ||
+          remainingPopulated.find(c => c.folderId === prev.activeFolderId) ||
+          remainingPopulated[0] ||
+          null;
+        if (fallbackChart) {
+          nextFolderId = fallbackChart.folderId;
+          nextTableSize = fallbackChart.tableSize;
+          nextActiveStack = fallbackChart.stackDepth;
+          nextScenario = fallbackChart.scenarioType;
+          nextHeroPos = fallbackChart.heroPos;
+          nextVillainPos = fallbackChart.villainPos;
+          if (fallbackChart.tableSize !== prev.activeTableSize) {
+            nextPositions = getSeatsForTableSize(fallbackChart.tableSize);
+          }
+        }
+      }
+
+      const nextState: StudioState = {
         ...prev,
         stackOptions: next,
         customStacks: next.map(s => `${s} BB`),
-        activeStackDepth: nextActive
+        activeFolderId: nextFolderId,
+        activeTableSize: nextTableSize,
+        activeStackDepth: nextActiveStack,
+        activeScenario: nextScenario,
+        activeHeroPos: nextHeroPos,
+        activeVillainPos: nextVillainPos,
+        activePositions: nextPositions,
+        charts: nextCharts,
+        leaks: nextLeaks
       };
+
+      stateChartsRef.current = nextCharts;
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(nextState));
+      } catch {
+        // Ignore storage errors
+      }
+      if (authUser) {
+        if (syncTimeoutRef.current !== null) {
+          window.clearTimeout(syncTimeoutRef.current);
+        }
+        pushToCloud(nextState, authUser, false);
+      }
+
+      setSelectedTrainerSpots(prevSpots => prevSpots.filter(id => Boolean(nextCharts[id])));
+      if (activeTrainedChart && !nextCharts[activeTrainedChart.spotId]) {
+        setActiveTrainedChart(null);
+        setTrainerPhase('IDLE');
+      }
+      if (Number(drawerStackDepth) === Number(stackToRemove)) {
+        setDrawerStackDepth(nextActiveStack);
+      }
+
+      return nextState;
     });
+    triggerToast(`Deleted ${stackToRemove} BB stack and its charts`);
   };
 
   const handleDeletePlayerOption = (playerToRemove: number) => {
@@ -3167,17 +3312,95 @@ export default function App() {
         return prev;
       }
       const next = prev.playerOptions.filter(p => p !== playerToRemove);
-      const nextActive = prev.activeTableSize === playerToRemove ? next[0] : prev.activeTableSize;
-      return {
+      const validPlayers = new Set(next.map(Number));
+
+      // Cascade delete all charts belonging to the deleted player count group
+      const nextCharts: { [spotId: string]: ChartData } = {};
+      for (const [k, v] of Object.entries(prev.charts)) {
+        if (Number(v.tableSize) !== Number(playerToRemove) && validPlayers.has(Number(v.tableSize))) {
+          nextCharts[k] = v;
+        }
+      }
+
+      // Clean up any leak entries belonging to deleted charts
+      const nextLeaks: { [leakKey: string]: LeakEntry } = {};
+      for (const [k, v] of Object.entries(prev.leaks)) {
+        if (nextCharts[v.spotId] && isChartPopulated(nextCharts[v.spotId])) {
+          nextLeaks[k] = v;
+        }
+      }
+
+      // Smoothly fall back if the currently active chart was inside the deleted player count group
+      const wasActiveInDeletedPlayers = Number(prev.activeTableSize) === Number(playerToRemove);
+      let nextActiveTableSize = wasActiveInDeletedPlayers ? next[0] : prev.activeTableSize;
+      let nextFolderId = prev.activeFolderId;
+      let nextStackDepth = prev.activeStackDepth;
+      let nextScenario = prev.activeScenario;
+      let nextHeroPos = prev.activeHeroPos;
+      let nextVillainPos = prev.activeVillainPos;
+
+      if (wasActiveInDeletedPlayers) {
+        const remainingPopulated = Object.values(nextCharts).filter(isChartPopulated);
+        const fallbackChart =
+          remainingPopulated.find(
+            c => c.folderId === prev.activeFolderId && c.stackDepth === prev.activeStackDepth
+          ) ||
+          remainingPopulated.find(c => c.folderId === prev.activeFolderId) ||
+          remainingPopulated[0] ||
+          null;
+        if (fallbackChart) {
+          nextFolderId = fallbackChart.folderId;
+          nextActiveTableSize = fallbackChart.tableSize;
+          nextStackDepth = fallbackChart.stackDepth;
+          nextScenario = fallbackChart.scenarioType;
+          nextHeroPos = fallbackChart.heroPos;
+          nextVillainPos = fallbackChart.villainPos;
+        }
+      }
+
+      const nextPositions = wasActiveInDeletedPlayers
+        ? getSeatsForTableSize(nextActiveTableSize)
+        : prev.activePositions;
+
+      const nextState: StudioState = {
         ...prev,
         playerOptions: next,
-        activeTableSize: nextActive,
-        activePositions:
-          prev.activeTableSize === playerToRemove
-            ? getSeatsForTableSize(nextActive)
-            : prev.activePositions
+        activeFolderId: nextFolderId,
+        activeTableSize: nextActiveTableSize,
+        activeStackDepth: nextStackDepth,
+        activeScenario: nextScenario,
+        activeHeroPos: nextHeroPos,
+        activeVillainPos: nextVillainPos,
+        activePositions: nextPositions,
+        charts: nextCharts,
+        leaks: nextLeaks
       };
+
+      stateChartsRef.current = nextCharts;
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(nextState));
+      } catch {
+        // Ignore storage errors
+      }
+      if (authUser) {
+        if (syncTimeoutRef.current !== null) {
+          window.clearTimeout(syncTimeoutRef.current);
+        }
+        pushToCloud(nextState, authUser, false);
+      }
+
+      setSelectedTrainerSpots(prevSpots => prevSpots.filter(id => Boolean(nextCharts[id])));
+      if (activeTrainedChart && !nextCharts[activeTrainedChart.spotId]) {
+        setActiveTrainedChart(null);
+        setTrainerPhase('IDLE');
+      }
+      if (Number(drawerTableSize) === Number(playerToRemove)) {
+        setDrawerTableSize(nextActiveTableSize);
+      }
+
+      return nextState;
     });
+    triggerToast(`Deleted ${playerToRemove}-Max group and its charts`);
   };
 
   const handleDeletePosition = (posToRemove: string) => {
@@ -3295,13 +3518,33 @@ export default function App() {
           delete nextCharts[spotIdToDelete];
           const nextLeaks: { [k: string]: LeakEntry } = {};
           for (const [lk, lv] of Object.entries(prev.leaks)) {
-            if (lv.spotId !== spotIdToDelete) nextLeaks[lk] = lv;
+            if (lv.spotId !== spotIdToDelete && nextCharts[lv.spotId] && isChartPopulated(nextCharts[lv.spotId])) {
+              nextLeaks[lk] = lv;
+            }
           }
-          return {
+          const nextState: StudioState = {
             ...prev,
             charts: nextCharts,
             leaks: nextLeaks
           };
+          stateChartsRef.current = nextCharts;
+          try {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(nextState));
+          } catch {
+            // Ignore storage errors
+          }
+          if (authUser) {
+            if (syncTimeoutRef.current !== null) {
+              window.clearTimeout(syncTimeoutRef.current);
+            }
+            pushToCloud(nextState, authUser, false);
+          }
+          setSelectedTrainerSpots(prevSpots => prevSpots.filter(id => id !== spotIdToDelete));
+          if (activeTrainedChart && activeTrainedChart.spotId === spotIdToDelete) {
+            setActiveTrainedChart(null);
+            setTrainerPhase('IDLE');
+          }
+          return nextState;
         });
         setConfirmModal(null);
         triggerToast(`Deleted chart "${titleLabel}"`);
@@ -3454,6 +3697,17 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-[#0B0D12] text-[#E6EDF3] font-sans selection:bg-[#6366F1]/30 selection:text-white flex flex-col">
+      <style>{`
+        input[type='number']::-webkit-inner-spin-button,
+        input[type='number']::-webkit-outer-spin-button {
+          -webkit-appearance: none;
+          margin: 0;
+        }
+        input[type='number'] {
+          -moz-appearance: textfield;
+          appearance: textfield;
+        }
+      `}</style>
       {/* ====================================================================
           TOP NAVIGATION HEADER
          ==================================================================== */}
@@ -3959,7 +4213,7 @@ export default function App() {
                   </div>
                 ))}
                 {addingPlayer ? (
-                  <div className="flex items-center gap-1 bg-[#181D29] border border-[#818CF8]/60 rounded-md px-2 py-0.5">
+                  <div className="flex items-center gap-1.5">
                     <input
                       type="number"
                       min={2}
@@ -3970,7 +4224,7 @@ export default function App() {
                         if (e.key === 'Enter') handleAddPlayerOption();
                         if (e.key === 'Escape') setAddingPlayer(false);
                       }}
-                      className="w-10 bg-transparent text-xs text-white focus:outline-none"
+                      className="w-14 bg-[#0B0D12]/90 border border-white/10 hover:border-[#818CF8]/40 focus:border-[#818CF8] focus:bg-[#6366F1]/10 text-white text-xs font-semibold rounded-lg px-2.5 py-1 text-center outline-none transition-colors"
                       autoFocus
                     />
                     <button type="button" onClick={handleAddPlayerOption} className="text-[#68B388]">
@@ -4025,7 +4279,7 @@ export default function App() {
                   </div>
                 ))}
                 {addingStack ? (
-                  <div className="flex items-center gap-1 bg-[#181D29] border border-[#818CF8]/60 rounded-md px-2 py-0.5">
+                  <div className="flex items-center gap-1.5">
                     <input
                       type="number"
                       min={5}
@@ -4036,7 +4290,7 @@ export default function App() {
                         if (e.key === 'Enter') handleAddStackOption();
                         if (e.key === 'Escape') setAddingStack(false);
                       }}
-                      className="w-14 bg-transparent text-xs text-white focus:outline-none"
+                      className="w-16 bg-[#0B0D12]/90 border border-white/10 hover:border-[#818CF8]/40 focus:border-[#818CF8] focus:bg-[#6366F1]/10 text-white text-xs font-semibold rounded-lg px-2.5 py-1 text-center outline-none transition-colors"
                       autoFocus
                     />
                     <button type="button" onClick={handleAddStackOption} className="text-[#68B388]">
@@ -4098,7 +4352,7 @@ export default function App() {
                         saveVillainBetSize(e.currentTarget.value);
                         setEditingVillainSize(false);
                       }}
-                      className="w-16 bg-[#0B0D12] px-1.5 py-0.5 rounded text-xs font-bold text-[#E5C07B] border border-[#232938] focus:border-[#818CF8] focus:outline-none text-center"
+                      className="w-20 bg-[#0B0D12]/90 border border-white/10 hover:border-[#818CF8]/40 focus:border-[#818CF8] focus:bg-[#6366F1]/10 text-white text-xs font-semibold rounded-lg px-2.5 py-1 text-center outline-none transition-colors"
                     />
                   </div>
                 )}
@@ -4700,7 +4954,7 @@ export default function App() {
                                   actions: c.actions.map(a => (a.id === action.id ? { ...a, size: val } : a))
                                 }));
                               }}
-                              className="w-16 bg-[#0B0D12] border border-[#232938] focus:border-[#818CF8] rounded px-1.5 py-0.5 text-[11px] font-semibold text-slate-200 focus:outline-none"
+                              className="w-20 bg-[#0B0D12]/90 border border-white/10 hover:border-[#818CF8]/40 focus:border-[#818CF8] focus:bg-[#6366F1]/10 text-white text-xs font-semibold rounded-lg px-2.5 py-1 text-center outline-none transition-colors"
                             />
                           )}
 
@@ -4759,10 +5013,26 @@ export default function App() {
 
                 {/* Brush Weight Slider & Presets */}
                 <div className="pt-2 border-t border-[#232938] flex flex-col gap-2">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-semibold text-slate-300">
-                      Brush Weight: <strong className="text-[#818CF8]">{brushWeight}%</strong>
-                    </span>
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-xs font-semibold text-slate-300">Brush Weight:</span>
+                      <div className="flex items-center gap-1">
+                        <input
+                          type="number"
+                          min={1}
+                          max={100}
+                          value={brushWeight}
+                          onChange={e => {
+                            const parsed = parseInt(e.target.value, 10);
+                            if (!isNaN(parsed)) {
+                              setBrushWeight(Math.max(1, Math.min(100, parsed)));
+                            }
+                          }}
+                          className="w-14 bg-[#0B0D12]/90 border border-white/10 hover:border-[#818CF8]/40 focus:border-[#818CF8] focus:bg-[#6366F1]/10 text-white text-xs font-semibold rounded-lg px-2.5 py-1 text-center outline-none transition-colors"
+                        />
+                        <span className="text-xs font-bold text-[#818CF8]">%</span>
+                      </div>
+                    </div>
                     <div className="flex items-center gap-1">
                       {[25, 50, 75, 100].map(preset => (
                         <button
@@ -5188,7 +5458,7 @@ export default function App() {
 
                               {/* Seat Name, Stack & Status Badge (Highlights seatObj.isActingNow with crisp amber/coral border glow) */}
                               <div
-                                className={`px-3 py-1 rounded-xl border text-center min-w-[92px] shadow-lg transition-all duration-150 ${
+                                className={`relative px-3 py-1 rounded-xl border text-center min-w-[92px] shadow-lg transition-all duration-150 ${
                                   seatObj.isActingNow
                                     ? isHeroSeat
                                       ? 'bg-[#181D29] border-[#818CF8]/60 text-white ring-2 ring-[#6366F1]/50 shadow-[0_0_16px_rgba(99,102,241,0.35)]'
@@ -5202,6 +5472,14 @@ export default function App() {
                                     : 'bg-[#12161F] border-[#232938] text-slate-200'
                                 }`}
                               >
+                                {(seatObj.pos === 'BTN' || (seatObj as any).position === 'BTN') && (
+                                  <div
+                                    title="Dealer Button (BTN)"
+                                    className="absolute -left-7 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full bg-gradient-to-br from-[#FBBF24] to-[#D97706] border border-[#FEF08A] text-[#0B0D12] font-black text-[11px] flex items-center justify-center shadow-[0_0_10px_rgba(251,191,36,0.4)] select-none z-20"
+                                  >
+                                    D
+                                  </div>
+                                )}
                                 <div className="text-[11px] font-extrabold tracking-wide flex items-center justify-center gap-1">
                                   <span>{seatObj.pos}</span>
                                   {isHeroSeat && (
@@ -6573,7 +6851,7 @@ export default function App() {
                   type="text"
                   value={actionFormSize}
                   onChange={e => setActionFormSize(e.target.value)}
-                  className="w-full bg-[#0B0D12] border border-[#232938] rounded-lg px-3 py-1.5 text-xs text-white focus:border-[#818CF8] focus:outline-none"
+                  className="w-full bg-[#0B0D12]/90 border border-white/10 hover:border-[#818CF8]/40 focus:border-[#818CF8] focus:bg-[#6366F1]/10 text-white text-xs font-semibold rounded-lg px-2.5 py-1 text-center outline-none transition-colors"
                 />
               </div>
             </div>
