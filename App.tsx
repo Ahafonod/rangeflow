@@ -2097,6 +2097,10 @@ export default function App() {
     }
   }, [authUser]);
 
+  const [inputPaymentId, setInputPaymentId] = useState<string>('');
+  const [verifyPaymentError, setVerifyPaymentError] = useState<string | null>(null);
+  const [isVerifyingPayment, setIsVerifyingPayment] = useState<boolean>(false);
+
   // Helper function to activate PRO for 30 days (or extend active proExpiresAt by 30 days)
   const activateProFor30Days = useCallback(
     async (paymentId?: string) => {
@@ -2126,6 +2130,93 @@ export default function App() {
     },
     [proExpiresAt]
   );
+
+  // Checkout handler for upgrading or extending PRO
+  const handleProCheckout = useCallback(async () => {
+    const user = authUser;
+    if (!user) {
+      setShowProModal(false);
+      setAuthModalNotice('Please log in or create a free account first to upgrade to PRO.');
+      setShowAuthModal(true);
+      return;
+    }
+    try {
+      const res = await fetch('https://api.nowpayments.io/v1/invoice', {
+        method: 'POST',
+        headers: { 'x-api-key': NOWPAYMENTS_API_KEY, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          price_amount: 15,
+          price_currency: 'usd',
+          order_id: user.id,
+          order_description: 'RangeFlow PRO - 30 Days',
+          success_url: window.location.origin + '/?payment=success',
+          cancel_url: window.location.origin + '/?payment=cancelled'
+        })
+      });
+      const data = await res.json();
+      if (data.invoice_url) {
+        window.open(data.invoice_url, '_blank', 'noopener,noreferrer');
+      } else {
+        window.open(NOWPAYMENTS_FALLBACK_URL, '_blank', 'noopener,noreferrer');
+      }
+    } catch {
+      window.open(NOWPAYMENTS_FALLBACK_URL, '_blank', 'noopener,noreferrer');
+    }
+  }, [authUser]);
+
+  // Verify NOWPayments Payment ID (NP_id) inside PRO Modal
+  const handleVerifyPaymentId = useCallback(async () => {
+    const trimmedId = inputPaymentId.trim();
+    if (!trimmedId) {
+      setVerifyPaymentError('Please enter a valid Payment ID.');
+      return;
+    }
+    const user = authUser;
+    const claimedPayments: string[] = Array.isArray(user?.user_metadata?.claimed_payments)
+      ? user.user_metadata.claimed_payments
+      : [];
+    if (claimedPayments.includes(trimmedId)) {
+      setVerifyPaymentError('This Payment ID has already been claimed.');
+      return;
+    }
+
+    setIsVerifyingPayment(true);
+    setVerifyPaymentError(null);
+    try {
+      const res = await fetch(`https://api.nowpayments.io/v1/payment/${trimmedId}`, {
+        headers: { 'x-api-key': NOWPAYMENTS_API_KEY }
+      });
+      const data = await res.json();
+      if (
+        res.ok &&
+        data &&
+        (data.payment_status === 'finished' ||
+          data.payment_status === 'confirmed' ||
+          data.payment_status === 'sending')
+      ) {
+        await activateProFor30Days(trimmedId);
+        await supabase.auth.updateUser({
+          data: {
+            claimed_payments: [...claimedPayments, trimmedId]
+          }
+        });
+        setInputPaymentId('');
+        setVerifyPaymentError(null);
+        setShowProModal(false);
+        triggerToast('PRO Status Unlocked! Welcome to RangeFlow PRO.');
+      } else {
+        setVerifyPaymentError(
+          data?.payment_status
+            ? `Payment status is "${data.payment_status}". Still waiting for confirmation.`
+            : 'Invalid Payment ID or payment is still waiting for confirmation.'
+        );
+      }
+    } catch {
+      setVerifyPaymentError('Invalid Payment ID or unable to verify payment status.');
+    } finally {
+      setIsVerifyingPayment(false);
+    }
+  }, [inputPaymentId, authUser, activateProFor30Days, triggerToast]);
 
   // Check URL on load for NP_id or payment=success from NOWPayments
   useEffect(() => {
@@ -3925,9 +4016,25 @@ export default function App() {
           </button>
 
           {userTier === 'pro' || state.isPro ? (
-            <div className="bg-[#E5C17B]/20 hover:bg-[#E5C17B]/35 border border-[#E5C17B]/60 hover:border-[#E5C17B] text-white text-xs font-semibold rounded-full px-3 md:px-3.5 py-1.5 transition-colors flex items-center gap-1.5 shadow-[0_0_12px_rgba(229,193,123,0.15)] select-none">
-              <Crown className="w-3.5 h-3.5 text-[#E5C17B]" />
-              <span>PRO</span>
+            <div className="flex items-center gap-1.5 sm:gap-2">
+              <div className="bg-[#E5C17B]/20 hover:bg-[#E5C17B]/35 border border-[#E5C17B]/60 hover:border-[#E5C17B] text-white text-xs font-semibold rounded-full px-3 md:px-3.5 py-1.5 transition-colors flex items-center gap-1.5 shadow-[0_0_12px_rgba(229,193,123,0.15)] select-none">
+                <Crown className="w-3.5 h-3.5 text-[#E5C17B]" />
+                <span>
+                  {proExpiresAt
+                    ? `PRO • ${Math.max(1, Math.ceil((new Date(proExpiresAt).getTime() - Date.now()) / 86400000))}d`
+                    : 'PRO'}
+                </span>
+              </div>
+              {proExpiresAt &&
+                Math.max(1, Math.ceil((new Date(proExpiresAt).getTime() - Date.now()) / 86400000)) <= 3 && (
+                  <button
+                    type="button"
+                    onClick={handleProCheckout}
+                    className="px-2.5 py-1.5 rounded-lg bg-[#12151E] hover:bg-[#6366F1]/20 border border-[#6366F1]/50 text-[#6366F1] hover:text-white text-xs font-semibold transition-colors whitespace-nowrap"
+                  >
+                    Extend PRO
+                  </button>
+                )}
             </div>
           ) : (
             <div className="flex items-center gap-1.5 sm:gap-2">
@@ -7254,6 +7361,39 @@ export default function App() {
                 <Crown className="w-4 h-4" />
                 <span>Upgrade to PRO</span>
               </button>
+
+              {/* Already paid? Verify Payment ID section */}
+              <div className="p-3 rounded-xl bg-[#0B0D12] border border-[#232938] flex flex-col gap-2">
+                <span className="text-[11px] font-semibold text-slate-300">
+                  Already paid? Verify Payment ID
+                </span>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    value={inputPaymentId}
+                    onChange={e => {
+                      setInputPaymentId(e.target.value);
+                      if (verifyPaymentError) setVerifyPaymentError(null);
+                    }}
+                    placeholder="Enter Payment ID (NP_id)"
+                    className="flex-1 px-3 py-1.5 rounded-lg bg-[#12151E] border border-[#232938] focus:border-[#6366F1] text-xs text-white placeholder-slate-500 outline-none transition-colors"
+                  />
+                  <button
+                    type="button"
+                    disabled={isVerifyingPayment}
+                    onClick={handleVerifyPaymentId}
+                    className="px-3.5 py-1.5 rounded-lg bg-[#6366F1] hover:bg-[#4F46E5] disabled:opacity-50 text-white text-xs font-bold transition-colors shrink-0"
+                  >
+                    {isVerifyingPayment ? 'Verifying...' : 'Verify'}
+                  </button>
+                </div>
+                {verifyPaymentError && (
+                  <div className="text-[11px] font-medium text-[#E06C75]">
+                    {verifyPaymentError}
+                  </div>
+                )}
+              </div>
 
               {/* Secondary Button: "Already upgraded? Refresh PRO Status" */}
               <button
