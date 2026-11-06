@@ -43,8 +43,8 @@ import {
 const SUPABASE_URL = 'https://srrrrfaqkncrplothrrj.supabase.co';
 const SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_lCNWXgpMeLFuhgrSRtFe4A_IJA_Fiyk';
 
-// Replace this URL with your live Stripe or Lemon Squeezy Payment Link
-const CHECKOUT_BASE_URL = 'https://rangeflow.lemonsqueezy.com/checkout/buy/0a27b4ce-c89e-49eb-89d9-99c72db9949b';
+// Live NOWPayments PRO Checkout Link
+const CHECKOUT_BASE_URL = 'https://nowpayments.io/payment/?iid=5760102340';
 
 const SUPABASE_SESSION_KEY = 'rangeflow_supabase_session_v4';
 
@@ -7117,17 +7117,7 @@ export default function App() {
                     setShowAuthModal(true);
                     return;
                   }
-                  const url =
-                    CHECKOUT_BASE_URL +
-                    '?client_reference_id=' +
-                    sessionUser.id +
-                    '&prefilled_email=' +
-                    encodeURIComponent(sessionUser.email || '') +
-                    '&checkout[custom][user_id]=' +
-                    sessionUser.id +
-                    '&checkout[email]=' +
-                    encodeURIComponent(sessionUser.email || '');
-                  window.open(url, '_blank', 'noopener,noreferrer');
+                  window.open('https://nowpayments.io/payment/?iid=5760102340', '_blank', 'noopener,noreferrer');
                 }}
                 className="w-full py-2.5 rounded-xl bg-[#E5C07B] hover:bg-[#D4B46A] text-[#0B0D12] font-extrabold text-xs transition-colors flex items-center justify-center gap-2 shadow-md"
               >
