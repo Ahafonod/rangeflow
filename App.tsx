@@ -2127,6 +2127,37 @@ export default function App() {
     [proExpiresAt]
   );
 
+  // Check URL on load for NP_id or payment=success from NOWPayments
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const npId = params.get('NP_id');
+    const paymentParam = params.get('payment');
+
+    if (npId) {
+      fetch(`https://api.nowpayments.io/v1/payment/${npId}`, {
+        headers: { 'x-api-key': NOWPAYMENTS_API_KEY }
+      })
+        .then(res => res.json())
+        .then(data => {
+          if (
+            data &&
+            (data.payment_status === 'finished' ||
+              data.payment_status === 'confirmed' ||
+              data.payment_status === 'sending')
+          ) {
+            activateProFor30Days(npId);
+            window.history.replaceState({}, '', window.location.pathname);
+          }
+        })
+        .catch(err => {
+          console.warn('NOWPayments payment status check failed:', err);
+        });
+    } else if (paymentParam === 'success') {
+      activateProFor30Days('invoice_return');
+      window.history.replaceState({}, '', window.location.pathname);
+    }
+  }, []);
+
   // Debounced auto-sync (2500ms) to Supabase Cloud whenever state changes after initial cloud load completes
   useEffect(() => {
     if (!authUser || !isInitialCloudLoadComplete.current || isApplyingRemoteRef.current) return;
@@ -7187,15 +7218,36 @@ export default function App() {
               {/* Primary CTA Button ("Upgrade to PRO") */}
               <button
                 type="button"
-                onClick={() => {
-                  const sessionUser = authUser;
-                  if (!sessionUser) {
+                onClick={async () => {
+                  const user = authUser;
+                  if (!user) {
                     setShowProModal(false);
                     setAuthModalNotice('Please log in or create a free account first to upgrade to PRO.');
                     setShowAuthModal(true);
                     return;
                   }
-                  window.open('https://nowpayments.io/payment/?iid=5125785839', '_blank', 'noopener,noreferrer');
+                  try {
+                    const res = await fetch('https://api.nowpayments.io/v1/invoice', {
+                      method: 'POST',
+                      headers: { 'x-api-key': NOWPAYMENTS_API_KEY, 'Content-Type': 'application/json' },
+                      body: JSON.stringify({
+                        price_amount: 15,
+                        price_currency: 'usd',
+                        order_id: user.id,
+                        order_description: 'RangeFlow PRO - 30 Days',
+                        success_url: window.location.origin + '/?payment=success',
+                        cancel_url: window.location.origin + '/?payment=cancelled'
+                      })
+                    });
+                    const data = await res.json();
+                    if (data.invoice_url) {
+                      window.open(data.invoice_url, '_blank', 'noopener,noreferrer');
+                    } else {
+                      window.open(NOWPAYMENTS_FALLBACK_URL, '_blank', 'noopener,noreferrer');
+                    }
+                  } catch {
+                    window.open(NOWPAYMENTS_FALLBACK_URL, '_blank', 'noopener,noreferrer');
+                  }
                 }}
                 className="w-full py-2.5 rounded-xl bg-[#E5C07B] hover:bg-[#D4B46A] text-[#0B0D12] font-extrabold text-xs transition-colors flex items-center justify-center gap-2 shadow-md"
               >
