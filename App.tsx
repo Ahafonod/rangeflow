@@ -44,7 +44,7 @@ const SUPABASE_URL = 'https://srrrrfaqkncrplothrrj.supabase.co';
 const SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_lCNWXgpMeLFuhgrSRtFe4A_IJA_Fiyk';
 
 // Live NOWPayments PRO Checkout Link
-const CHECKOUT_BASE_URL = 'https://nowpayments.io/payment/?iid=5760102340';
+const CHECKOUT_BASE_URL = 'https://nowpayments.io/payment/?iid=5125785839';
 
 const SUPABASE_SESSION_KEY = 'rangeflow_supabase_session_v4';
 
@@ -7117,7 +7117,7 @@ export default function App() {
                     setShowAuthModal(true);
                     return;
                   }
-                  window.open('https://nowpayments.io/payment/?iid=5760102340', '_blank', 'noopener,noreferrer');
+                  window.open('https://nowpayments.io/payment/?iid=5125785839', '_blank', 'noopener,noreferrer');
                 }}
                 className="w-full py-2.5 rounded-xl bg-[#E5C07B] hover:bg-[#D4B46A] text-[#0B0D12] font-extrabold text-xs transition-colors flex items-center justify-center gap-2 shadow-md"
               >
