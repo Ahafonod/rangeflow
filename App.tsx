@@ -44,6 +44,8 @@ const SUPABASE_URL = 'https://srrrrfaqkncrplothrrj.supabase.co';
 const SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_lCNWXgpMeLFuhgrSRtFe4A_IJA_Fiyk';
 
 // Live NOWPayments PRO Checkout Link
+const NOWPAYMENTS_API_KEY = '49HJWTB-ANZMRVF-MWTYE9E-Q8FWC35';
+const NOWPAYMENTS_FALLBACK_URL = 'https://nowpayments.io/payment/?iid=5125785839';
 const CHECKOUT_BASE_URL = 'https://nowpayments.io/payment/?iid=5125785839';
 
 const SUPABASE_SESSION_KEY = 'rangeflow_supabase_session_v4';
@@ -1794,6 +1796,14 @@ export default function App() {
 
   // Supabase Auth, User Tier & Cloud Sync State (default userTier strictly to 'free')
   const [userTier, setUserTier] = useState<'free' | 'pro'>('free');
+  const [isPro, setIsPro] = useState<boolean>(state.isPro);
+  const [proExpiresAt, setProExpiresAt] = useState<string | null>(() => {
+    try {
+      return localStorage.getItem('rf_pro_expires_at');
+    } catch {
+      return null;
+    }
+  });
   const [authUser, setAuthUser] = useState<SupabaseUser | null>(null);
   const [syncStatus, setSyncStatus] = useState<'local' | 'syncing' | 'synced' | 'error'>('local');
   const [lastSyncedAt, setLastSyncedAt] = useState<string | null>(null);
@@ -1845,8 +1855,23 @@ export default function App() {
           }
         }
 
-        const resolvedTier: 'free' | 'pro' = remoteTier === 'pro' ? 'pro' : 'free';
+        const metaProExpiresAt = user.user_metadata?.pro_expires_at;
+        let resolvedTier: 'free' | 'pro' = remoteTier === 'pro' ? 'pro' : 'free';
+        if (metaProExpiresAt) {
+          if (new Date(metaProExpiresAt) > new Date()) {
+            resolvedTier = 'pro';
+            setProExpiresAt(metaProExpiresAt);
+            try {
+              localStorage.setItem('rf_pro_expires_at', metaProExpiresAt);
+            } catch {
+              // Ignore storage quota errors
+            }
+          } else if (new Date() >= new Date(metaProExpiresAt)) {
+            resolvedTier = 'free';
+          }
+        }
         const resolvedIsPro = resolvedTier === 'pro';
+        setIsPro(resolvedIsPro);
         setUserTier(resolvedTier);
 
         if (!remoteState && user.user_metadata?.rangeflow_studio_v4) {
@@ -2048,6 +2073,59 @@ export default function App() {
       }
     };
   }, [pullFromCloud]);
+
+  // Evaluate user.user_metadata?.pro_expires_at when the Supabase user loads or changes
+  useEffect(() => {
+    if (!authUser) return;
+    const userProExpiresAt = authUser.user_metadata?.pro_expires_at;
+    if (userProExpiresAt) {
+      if (new Date(userProExpiresAt) > new Date()) {
+        setIsPro(true);
+        setUserTier('pro');
+        setState(prev => (prev.isPro ? prev : { ...prev, isPro: true }));
+        setProExpiresAt(userProExpiresAt);
+        try {
+          localStorage.setItem('rf_pro_expires_at', userProExpiresAt);
+        } catch {
+          // Ignore storage quota errors
+        }
+      } else if (new Date() >= new Date(userProExpiresAt)) {
+        setIsPro(false);
+        setUserTier('free');
+        setState(prev => (!prev.isPro ? prev : { ...prev, isPro: false }));
+      }
+    }
+  }, [authUser]);
+
+  // Helper function to activate PRO for 30 days (or extend active proExpiresAt by 30 days)
+  const activateProFor30Days = useCallback(
+    async (paymentId?: string) => {
+      const now = new Date();
+      const baseDate =
+        proExpiresAt && new Date(proExpiresAt) > now ? new Date(proExpiresAt) : now;
+      const newExpiry = new Date(baseDate.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString();
+
+      setIsPro(true);
+      setUserTier('pro');
+      setState(prev => ({ ...prev, isPro: true }));
+      setProExpiresAt(newExpiry);
+
+      try {
+        localStorage.setItem('rf_pro_expires_at', newExpiry);
+      } catch {
+        // Ignore storage quota errors
+      }
+
+      await supabase.auth.updateUser({
+        data: {
+          is_pro: true,
+          pro_expires_at: newExpiry,
+          last_payment_id: paymentId
+        }
+      });
+    },
+    [proExpiresAt]
+  );
 
   // Debounced auto-sync (2500ms) to Supabase Cloud whenever state changes after initial cloud load completes
   useEffect(() => {
