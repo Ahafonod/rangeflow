@@ -2132,7 +2132,7 @@ export default function App() {
   );
 
   // Checkout handler for upgrading or extending PRO
-  const handleProCheckout = useCallback(() => {
+  const handleProCheckout = useCallback(async () => {
     const user = authUser;
     if (!user) {
       setShowProModal(false);
@@ -2140,7 +2140,28 @@ export default function App() {
       setShowAuthModal(true);
       return;
     }
-    window.open('https://nowpayments.io/payment/?iid=4482820425', '_blank', 'noopener,noreferrer');
+    try {
+      const res = await fetch('https://api.nowpayments.io/v1/invoice', {
+        method: 'POST',
+        headers: { 'x-api-key': NOWPAYMENTS_API_KEY, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          price_amount: 12,
+          price_currency: 'usd',
+          order_id: user.id,
+          order_description: 'RangeFlow PRO - 30 Days',
+          success_url: window.location.origin + '/?payment=success',
+          cancel_url: window.location.origin + '/?payment=cancelled'
+        })
+      });
+      const data = await res.json();
+      if (data.invoice_url) {
+        window.open(data.invoice_url, '_blank', 'noopener,noreferrer');
+      } else {
+        window.open(NOWPAYMENTS_FALLBACK_URL, '_blank', 'noopener,noreferrer');
+      }
+    } catch {
+      window.open(NOWPAYMENTS_FALLBACK_URL, '_blank', 'noopener,noreferrer');
+    }
   }, [authUser]);
 
   // Verify NOWPayments Payment ID (NP_id) inside PRO Modal
@@ -7304,7 +7325,7 @@ export default function App() {
               {/* Primary CTA Button ("Upgrade to PRO") */}
               <button
                 type="button"
-                onClick={() => {
+                onClick={async () => {
                   const user = authUser;
                   if (!user) {
                     setShowProModal(false);
@@ -7312,12 +7333,33 @@ export default function App() {
                     setShowAuthModal(true);
                     return;
                   }
-                  window.open('https://nowpayments.io/payment/?iid=4482820425', '_blank', 'noopener,noreferrer');
+                  try {
+                    const res = await fetch('https://api.nowpayments.io/v1/invoice', {
+                      method: 'POST',
+                      headers: { 'x-api-key': NOWPAYMENTS_API_KEY, 'Content-Type': 'application/json' },
+                      body: JSON.stringify({
+                        price_amount: 12,
+                        price_currency: 'usd',
+                        order_id: user.id,
+                        order_description: 'RangeFlow PRO - 30 Days',
+                        success_url: window.location.origin + '/?payment=success',
+                        cancel_url: window.location.origin + '/?payment=cancelled'
+                      })
+                    });
+                    const data = await res.json();
+                    if (data.invoice_url) {
+                      window.open(data.invoice_url, '_blank', 'noopener,noreferrer');
+                    } else {
+                      window.open(NOWPAYMENTS_FALLBACK_URL, '_blank', 'noopener,noreferrer');
+                    }
+                  } catch {
+                    window.open(NOWPAYMENTS_FALLBACK_URL, '_blank', 'noopener,noreferrer');
+                  }
                 }}
                 className="w-full py-2.5 rounded-xl bg-[#E5C07B] hover:bg-[#D4B46A] text-[#0B0D12] font-extrabold text-xs transition-colors flex items-center justify-center gap-2 shadow-md"
               >
                 <Crown className="w-4 h-4" />
-                <span>Upgrade to PRO — $12/month</span>
+                <span>Upgrade to PRO — $12/mo</span>
               </button>
 
               {/* Already paid? Verify Payment ID section */}
