@@ -2149,8 +2149,14 @@ export default function App() {
           price_currency: 'usd',
           order_id: user.id,
           order_description: 'RangeFlow PRO - 30 Days',
-          success_url: window.location.origin + '/?payment=success',
-          cancel_url: window.location.origin + '/?payment=cancelled'
+          success_url:
+            window.location.hostname === 'localhost'
+              ? 'https://rangeflow.vercel.app/?payment=success'
+              : window.location.origin + '/?payment=success',
+          cancel_url:
+            window.location.hostname === 'localhost'
+              ? 'https://rangeflow.vercel.app/?payment=cancelled'
+              : window.location.origin + '/?payment=cancelled'
         })
       });
       const data = await res.json();
@@ -7342,8 +7348,14 @@ export default function App() {
                         price_currency: 'usd',
                         order_id: user.id,
                         order_description: 'RangeFlow PRO - 30 Days',
-                        success_url: window.location.origin + '/?payment=success',
-                        cancel_url: window.location.origin + '/?payment=cancelled'
+                        success_url:
+                          window.location.hostname === 'localhost'
+                            ? 'https://rangeflow.vercel.app/?payment=success'
+                            : window.location.origin + '/?payment=success',
+                        cancel_url:
+                          window.location.hostname === 'localhost'
+                            ? 'https://rangeflow.vercel.app/?payment=cancelled'
+                            : window.location.origin + '/?payment=cancelled'
                       })
                     });
                     const data = await res.json();
@@ -7367,6 +7379,9 @@ export default function App() {
                 <span className="text-[11px] font-semibold text-slate-300">
                   Already paid? Verify Payment ID
                 </span>
+                <p className="text-[11px] text-slate-400">
+                  After completing your crypto payment in the NOWPayments tab, paste your Payment ID below to activate PRO immediately.
+                </p>
                 <div className="flex items-center gap-2">
                   <input
                     type="text"
@@ -7376,7 +7391,7 @@ export default function App() {
                       setInputPaymentId(e.target.value);
                       if (verifyPaymentError) setVerifyPaymentError(null);
                     }}
-                    placeholder="Enter Payment ID (NP_id)"
+                    placeholder="e.g. 5374572321 (from NOWPayments screen)"
                     className="flex-1 px-3 py-1.5 rounded-lg bg-[#12151E] border border-[#232938] focus:border-[#6366F1] text-xs text-white placeholder-slate-500 outline-none transition-colors"
                   />
                   <button
