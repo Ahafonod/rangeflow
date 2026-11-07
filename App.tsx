@@ -6524,10 +6524,10 @@ export default function App() {
           {/* Center / Contact Info */}
           <div className="flex flex-wrap items-center justify-center gap-3 text-xs text-slate-400">
             <a
-              href="mailto:support@rangeflow.app"
+              href="mailto:rangeflow.support@gmail.com"
               className="text-slate-300 hover:text-white transition-colors duration-150"
             >
-              support@rangeflow.app
+              rangeflow.support@gmail.com
             </a>
             <span className="text-slate-600">•</span>
             <span>© 2026 RangeFlow. All rights reserved.</span>
@@ -7419,6 +7419,16 @@ export default function App() {
                 <RefreshCw className="w-3.5 h-3.5 text-[#E5C07B]" />
                 <span>Already upgraded? Refresh PRO Status</span>
               </button>
+
+              <p className="text-[11px] text-slate-400 text-center pt-1">
+                30-day PRO pass ($12) • No recurring auto-charges. Need help with a payment? Contact{' '}
+                <a
+                  href="mailto:rangeflow.support@gmail.com"
+                  className="text-slate-300 hover:text-white underline transition-colors"
+                >
+                  rangeflow.support@gmail.com
+                </a>
+              </p>
             </div>
           </div>
         </div>
